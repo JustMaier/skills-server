@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skills Server Admin</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0f0f0f;
+      --card: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #e0e0e0;
+      --text-dim: #888;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --error: #ef4444;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --radius: 8px;
+      --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-title .icon {
+      width: 24px;
+      height: 24px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: white;
+      font-weight: 700;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      border-color: #444;
+      background: #222;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .btn-danger {
+      border-color: var(--error);
+      color: var(--error);
+    }
+
+    .btn-danger:hover {
+      background: var(--error);
+      color: white;
+    }
+
+    .btn-sm {
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+
+    .btn-logout {
+      border-color: #555;
+      color: #999;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      margin-top: 20px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-dim);
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    /* Forms */
+    .form-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-group label {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    input, select, textarea {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #111;
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+
+    input::placeholder {
+      color: #555;
+    }
+
+    /* Utility */
+    .mono {
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .text-error {
+      color: var(--error);
+    }
+
+    .text-success {
+      color: var(--success);
+    }
+
+    .text-dim {
+      color: var(--text-dim);
+    }
+
+    .text-warning {
+      color: var(--warning);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .badge-error {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--error);
+    }
+
+    .badge-success {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success);
+    }
+
+    .badge-info {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent);
+    }
+
+    /* Key display */
+    .key-display {
+      background: #111;
+      border: 1px solid var(--warning);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-top: 12px;
+    }
+
+    .key-display .key-warning {
+      color: var(--warning);
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .key-display .key-value {
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      word-break: break-all;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .key-display .key-value code {
+      flex: 1;
+      user-select: all;
+    }
+
+    /* Alert */
+    .alert {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .alert-success {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: var(--success);
+    }
+
+    .alert-error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--error);
+    }
+
+    .alert-info {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: var(--accent);
+    }
+
+    /* Login */
+    .login-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .login-card h1 {
+      font-size: 20px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .login-card p {
+      color: var(--text-dim);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .login-card input {
+      width: 100%;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+    }
+
+    .login-card .btn {
+      width: 100%;
+      padding: 10px;
+    }
+
+    /* Permission checkboxes */
+    .perm-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+    }
+
+    .perm-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .perm-item:hover {
+      border-color: #444;
+    }
+
+    .perm-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .perm-item label {
+      cursor: pointer;
+      flex: 1;
+    }
+
+    .perm-item .perm-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      display: block;
+    }
+
+    /* Scripts list */
+    .script-list {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .script-tag {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    /* Action buttons group */
+    .action-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Empty state */
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+
+    /* Loading */
+    .loading {
+      color: var(--text-dim);
+      font-size: 13px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    /* Modal backdrop */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .modal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .modal h3 {
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    /* Inline edit */
+    .inline-edit {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .inline-edit input {
+      padding: 4px 8px;
+      font-size: 13px;
+    }
+
+    /* Log filters */
+    .filters {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .filters select,
+    .filters input {
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+
+    .auto-refresh-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-left: auto;
+    }
+
+    .auto-refresh-toggle input {
+      accent-color: var(--accent);
+    }
+
+    /* Section header */
+    .section-header {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      margin-top: 20px;
+    }
+
+    .section-header:first-child {
+      margin-top: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .form-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .tabs {
+        overflow-x: auto;
+      }
+
+      .tab-btn {
+        padding: 10px 14px;
+        font-size: 13px;
+      }
+
+      .action-btns {
+        flex-wrap: wrap;
+      }
+
+      .perm-grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        font-size: 12px;
+      }
+
+      th, td {
+        padding: 8px;
+      }
+    }
+
+    /* Scrollable table wrapper */
+    .table-wrap {
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ====================== LOGIN SCREEN ====================== -->
+  <div x-data="loginApp()" x-show="!isAuthenticated()" x-cloak>
+    <div class="login-container">
+      <div class="login-card">
+        <h1>
+          <span class="icon" style="width:28px;height:28px;font-size:15px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:white;font-weight:700;">S</span>
+          Skills Server
+        </h1>
+        <p>Enter your admin API key to continue.</p>
+        <template x-if="error">
+          <div class="alert alert-error" x-text="error"></div>
+        </template>
+        <input
+          type="password"
+          placeholder="Admin API key"
+          x-model="apiKey"
+          @keydown.enter="login()"
+        >
+        <button class="btn btn-primary" @click="login()" :disabled="!apiKey.trim()">
+          Login
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================== MAIN APP ====================== -->
+  <div x-data="adminApp()" x-show="isAuthenticated()" x-cloak x-init="init()">
+
+    <!-- Header -->
+    <header>
+      <div class="container header-inner">
+        <div class="header-title">
+          <span class="icon">S</span>
+          Skills Server
+        </div>
+        <button class="btn btn-logout" @click="logout()">Logout</button>
+      </div>
+    </header>
+
+    <div class="container" style="padding-top: 8px; padding-bottom: 40px;">
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn" :class="{ active: tab === 'skills' }" @click="switchTab('skills')">Skills</button>
+        <button class="tab-btn" :class="{ active: tab === 'agents' }" @click="switchTab('agents')">Agents</button>
+        <button class="tab-btn" :class="{ active: tab === 'envvars' }" @click="switchTab('envvars')">Env Vars</button>
+        <button class="tab-btn" :class="{ active: tab === 'permissions' }" @click="switchTab('permissions')">Permissions</button>
+        <button class="tab-btn" :class="{ active: tab === 'logs' }" @click="switchTab('logs')">Logs</button>
+      </div>
+
+      <!-- ==================== SKILLS TAB ==================== -->
+      <div x-show="tab === 'skills'">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Discovered Skills</div>
+            <div class="action-btns">
+              <button class="btn btn-primary btn-sm" @click="reloadSkills()" :disabled="skillsLoading">
+                <span x-show="!skillsLoading">Reload Skills</span>
+                <span x-show="skillsLoading">Reloading...</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Reload result -->
+          <template x-if="reloadResult">
+            <div class="alert alert-success" style="margin-bottom: 16px;">
+              Reload complete: <strong x-text="reloadResult.total"></strong> total,
+              <strong x-text="reloadResult.added"></strong> added,
+              <strong x-text="reloadResult.updated"></strong> updated,
+              <strong x-text="reloadResult.removed"></strong> removed.
+              <template x-if="reloadResult.errors && reloadResult.errors.length > 0">
+                <span class="text-error"> (<span x-text="reloadResult.errors.length"></span> errors)</span>
+              </template>
+            </div>
+          </template>
+
+          <!-- Discovery errors -->
+          <template x-if="skillErrors.length > 0">
+            <div class="alert alert-error" style="margin-bottom: 16px;">
+              <strong>Discovery Errors:</strong>
+              <template x-for="err in skillErrors" :key="err.dir">
+                <div class="mono" style="margin-top:4px;" x-text="err.dir + ': ' + err.error"></div>
+              </template>
+            </div>
+          </template>
+
+          <div x-show="skillsLoading && skillsList.length === 0" class="loading">Loading skills...</div>
+
+          <div x-show="!skillsLoading && skillsList.length === 0" class="empty">
+            No skills discovered. Place skill directories in the configured skills path and click Reload.
+          </div>
+
+          <div class="table-wrap" x-show="skillsList.length > 0">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Scripts</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="skill in skillsList" :key="skill.name">
+                  <tr>
+                    <td class="mono" style="font-weight:600;" x-text="skill.name"></td>
+                    <td x-text="skill.description || '(no description)'" :class="{ 'text-dim': !skill.description }"></td>
+                    <td>
+                      <div class="script-list">
+                        <template x-for="s in skill.scripts" :key="s">
+                          <span class="script-tag" x-text="s"></span>
+                        </template>
+                      </div>
+                    </td>
+                    <td>
+                      <template x-if="skill.parseError">
+                        <span class="badge badge-error" x-text="skill.parseError"></span>
+                      </template>
+                      <template x-if="!skill.parseError">
+                        <span class="badge badge-success">OK</span>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== AGENTS TAB ==================== -->
+      <div x-show="tab === 'agents'">
+        <!-- Create agent form -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom: 12px;">Create Agent</div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <label>Name</label>
+              <input type="text" placeholder="e.g. my-agent" x-model="newAgentName" @keydown.enter="createAgent()">
+            </div>
+            <button class="btn btn-primary" @click="createAgent()" :disabled="!newAgentName.trim() || agentCreating">
+              <span x-show="!agentCreating">Create Agent</span>
+              <span x-show="agentCreating">Creating...</span>
+            </button>
+          </div>
+          <!-- New agent key display -->
+          <template x-if="newAgentKey">
+            <div class="key-display">
+              <div class="key-warning">Save this key -- it won't be shown again!</div>
+              <div class="key-value">
+                <code x-text="newAgentKey"></code>
+                <button class="btn btn-sm" @click="copyToClipboard(newAgentKey)">Copy</button>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Agents list -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Agents</div>
+            <button class="btn btn-sm" @click="fetchAgents()">Refresh</button>
+          </div>
+
+          <div x-show="agentsLoading && agentsList.length === 0" class="loading">Loading agents...</div>
+          <div x-show="!agentsLoading && agentsList.length === 0" class="empty">No agents created yet.</div>
+
+          <!-- Rotated key display -->
+          <template x-if="rotatedKey">
+            <div class="key-display" style="margin-bottom:16px;">
+              <div class="key-warning">New API key -- save it now, it won't be shown again!</div>
+              <div class="key-value">
+                <code x-text="rotatedKey"></code>
+                <button class="btn btn-sm" @click="copyToClipboard(rotatedKey)">Copy</button>
+              </div>
+            </div>
+          </template>
+
+          <div class="table-wrap" x-show="agentsList.length > 0">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Created</th>
+                  <th style="width: 220px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="agent in agentsList" :key="agent.id">
+                  <tr>
+                    <td>
+                      <!-- Edit mode -->
+                      <template x-if="editingAgentId === agent.id">
+                        <div class="inline-edit">
+                          <input type="text" x-model="editingAgentName" @keydown.enter="saveAgentName(agent.id)" @keydown.escape="editingAgentId = null" style="width:160px;">
+                          <button class="btn btn-sm btn-primary" @click="saveAgentName(agent.id)">Save</button>
+                          <button class="btn btn-sm" @click="editingAgentId = null">Cancel</button>
+                        </div>
+                      </template>
+                      <template x-if="editingAgentId !== agent.id">
+                        <span class="mono" style="font-weight:600;" x-text="agent.name"></span>
+                      </template>
+                    </td>
+                    <td class="text-dim" x-text="formatDate(agent.createdAt)"></td>
+                    <td>
+                      <div class="action-btns">
+                        <button class="btn btn-sm" @click="startEditAgent(agent)" x-show="editingAgentId !== agent.id">Edit</button>
+                        <button class="btn btn-sm" @click="rotateAgentKey(agent.id)" :disabled="rotatingKeyId === agent.id">
+                          <span x-show="rotatingKeyId !== agent.id">Rotate Key</span>
+                          <span x-show="rotatingKeyId === agent.id">...</span>
+                        </button>
+                        <button class="btn btn-sm btn-danger" @click="deleteAgent(agent)">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== ENV VARS TAB ==================== -->
+      <div x-show="tab === 'envvars'">
+        <!-- Create env var -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom: 12px;">Create Environment Variable</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Key</label>
+              <input type="text" placeholder="e.g. OPENAI_API_KEY" x-model="newEnvKey" style="width:200px;">
+            </div>
+            <div class="form-group">
+              <label>Value</label>
+              <input type="password" placeholder="Secret value" x-model="newEnvValue" style="width:240px;">
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label>Description</label>
+              <input type="text" placeholder="Optional description" x-model="newEnvDesc">
+            </div>
+            <button class="btn btn-primary" @click="createEnvVar()" :disabled="!newEnvKey.trim() || !newEnvValue.trim() || envCreating">
+              <span x-show="!envCreating">Create</span>
+              <span x-show="envCreating">Creating...</span>
+            </button>
+          </div>
+          <template x-if="envCreateError">
+            <div class="alert alert-error" style="margin-top:12px;" x-text="envCreateError"></div>
+          </template>
+        </div>
+
+        <!-- Env vars list -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Environment Variables</div>
+            <button class="btn btn-sm" @click="fetchEnvVars()">Refresh</button>
+          </div>
+
+          <div x-show="envLoading && envVarsList.length === 0" class="loading">Loading...</div>
+          <div x-show="!envLoading && envVarsList.length === 0" class="empty">No environment variables configured.</div>
+
+          <div class="table-wrap" x-show="envVarsList.length > 0">
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Description</th>
+                  <th style="width:300px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="ev in envVarsList" :key="ev.id">
+                  <tr>
+                    <td class="mono" style="font-weight:600;" x-text="ev.key"></td>
+                    <td>
+                      <template x-if="editingEnvId === ev.id">
+                        <input type="text" x-model="editingEnvDesc" placeholder="Description" style="width:100%;">
+                      </template>
+                      <template x-if="editingEnvId !== ev.id">
+                        <span x-text="ev.description || '(none)'" :class="{ 'text-dim': !ev.description }"></span>
+                      </template>
+                    </td>
+                    <td>
+                      <template x-if="editingEnvId === ev.id">
+                        <div>
+                          <div style="margin-bottom:8px;">
+                            <input type="password" x-model="editingEnvValue" placeholder="Enter new value (leave blank to keep)" style="width:100%;">
+                          </div>
+                          <div class="action-btns">
+                            <button class="btn btn-sm btn-primary" @click="saveEnvVar(ev.id)">Save</button>
+                            <button class="btn btn-sm" @click="editingEnvId = null">Cancel</button>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="editingEnvId !== ev.id">
+                        <div class="action-btns">
+                          <button class="btn btn-sm" @click="startEditEnvVar(ev)">Edit</button>
+                          <button class="btn btn-sm btn-danger" @click="deleteEnvVar(ev)">Delete</button>
+                        </div>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== PERMISSIONS TAB ==================== -->
+      <div x-show="tab === 'permissions'">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Agent Permissions</div>
+          </div>
+
+          <div class="form-row" style="margin-bottom:20px;">
+            <div class="form-group" style="min-width:240px;">
+              <label>Select Agent</label>
+              <select x-model="permAgentId" @change="fetchPermissions()">
+                <option value="">-- Select an agent --</option>
+                <template x-for="a in agentsList" :key="a.id">
+                  <option :value="a.id" x-text="a.name"></option>
+                </template>
+              </select>
+            </div>
+          </div>
+
+          <div x-show="!permAgentId" class="empty" style="padding:20px;">
+            Select an agent above to manage permissions.
+          </div>
+
+          <div x-show="permLoading" class="loading">Loading permissions...</div>
+
+          <div x-show="permAgentId && !permLoading">
+            <!-- Skills permissions -->
+            <div class="section-header">Skills</div>
+            <div x-show="allSkillsForPerms.length === 0" class="text-dim" style="font-size:13px;margin-bottom:12px;">
+              No skills available. Discover and reload skills first.
+            </div>
+            <div class="perm-grid" x-show="allSkillsForPerms.length > 0">
+              <template x-for="skill in allSkillsForPerms" :key="skill.name">
+                <div class="perm-item">
+                  <input
+                    type="checkbox"
+                    :id="'sk-' + skill.name"
+                    :checked="isSkillGranted(skill.name)"
+                    @change="toggleSkillPerm(skill, $event.target.checked)"
+                  >
+                  <label :for="'sk-' + skill.name">
+                    <span x-text="skill.name"></span>
+                    <span class="perm-desc" x-text="skill.description || ''" x-show="skill.description"></span>
+                  </label>
+                </div>
+              </template>
+            </div>
+
+            <!-- Env var permissions -->
+            <div class="section-header" style="margin-top:24px;">Environment Variables</div>
+            <div x-show="allEnvVarsForPerms.length === 0" class="text-dim" style="font-size:13px;margin-bottom:12px;">
+              No environment variables configured.
+            </div>
+            <div class="perm-grid" x-show="allEnvVarsForPerms.length > 0">
+              <template x-for="ev in allEnvVarsForPerms" :key="ev.id">
+                <div class="perm-item">
+                  <input
+                    type="checkbox"
+                    :id="'ev-' + ev.id"
+                    :checked="isEnvVarGranted(ev.id)"
+                    @change="toggleEnvVarPerm(ev, $event.target.checked)"
+                  >
+                  <label :for="'ev-' + ev.id">
+                    <span class="mono" x-text="ev.key"></span>
+                    <span class="perm-desc" x-text="ev.description || ''" x-show="ev.description"></span>
+                  </label>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== LOGS TAB ==================== -->
+      <div x-show="tab === 'logs'">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Execution Logs</div>
+            <button class="btn btn-sm" @click="fetchLogs()">Refresh</button>
+          </div>
+
+          <!-- Filters -->
+          <div class="filters">
+            <div class="form-group">
+              <label>Agent</label>
+              <select x-model="logFilterAgent" @change="fetchLogs()" style="min-width:160px;">
+                <option value="">All agents</option>
+                <template x-for="a in agentsList" :key="a.id">
+                  <option :value="a.id" x-text="a.name"></option>
+                </template>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Skill</label>
+              <input type="text" placeholder="Filter by skill name" x-model="logFilterSkill" @input.debounce.400ms="fetchLogs()" style="width:180px;">
+            </div>
+            <div class="auto-refresh-toggle">
+              <input type="checkbox" id="auto-refresh" x-model="logAutoRefresh" @change="toggleAutoRefresh()">
+              <label for="auto-refresh">Auto-refresh (10s)</label>
+            </div>
+          </div>
+
+          <div x-show="logsLoading && logsList.length === 0" class="loading">Loading logs...</div>
+          <div x-show="!logsLoading && logsList.length === 0" class="empty">No execution logs found.</div>
+
+          <div class="table-wrap" x-show="logsList.length > 0">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Agent</th>
+                  <th>Skill</th>
+                  <th>Script</th>
+                  <th>Exit</th>
+                  <th>Duration</th>
+                  <th>Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="log in logsList" :key="log.id">
+                  <tr>
+                    <td class="mono text-dim" style="white-space:nowrap;" x-text="formatDateTime(log.createdAt)"></td>
+                    <td x-text="log.agentName || log.agentId || '(unknown)'" :class="{ 'text-dim': !log.agentName }"></td>
+                    <td class="mono" x-text="log.skillName"></td>
+                    <td class="mono" x-text="log.script"></td>
+                    <td>
+                      <template x-if="log.exitCode === 0">
+                        <span class="badge badge-success">0</span>
+                      </template>
+                      <template x-if="log.exitCode !== null && log.exitCode !== 0">
+                        <span class="badge badge-error" x-text="log.exitCode"></span>
+                      </template>
+                      <template x-if="log.exitCode === null">
+                        <span class="text-dim">--</span>
+                      </template>
+                    </td>
+                    <td class="text-dim" x-text="log.durationMs !== null ? log.durationMs + 'ms' : '--'"></td>
+                    <td>
+                      <template x-if="log.error">
+                        <span class="text-error mono" style="font-size:11px;word-break:break-all;" x-text="log.error"></span>
+                      </template>
+                      <template x-if="!log.error">
+                        <span class="text-dim">--</span>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Global notification -->
+      <template x-if="notification">
+        <div
+          style="position:fixed;bottom:20px;right:20px;z-index:300;max-width:400px;"
+          :class="'alert alert-' + notification.type"
+          x-text="notification.message"
+          x-init="setTimeout(() => notification = null, 4000)"
+        ></div>
+      </template>
+
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    function getApiKey() {
+      return localStorage.getItem('adminApiKey') || '';
+    }
+
+    function isAuthenticated() {
+      return !!localStorage.getItem('adminApiKey');
+    }
+
+    async function apiFetch(path, options = {}) {
+      const key = getApiKey();
+      const headers = {
+        'Authorization': 'Bearer ' + key,
+        ...(options.headers || {}),
+      };
+
+      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(options.body);
+      }
+
+      const res = await fetch(path, { ...options, headers });
+
+      if (res.status === 401 || res.status === 403) {
+        // Only reload if we had a key (avoids infinite reload when not logged in)
+        const hadKey = !!localStorage.getItem('adminApiKey');
+        localStorage.removeItem('adminApiKey');
+        if (hadKey) window.location.reload();
+        throw new Error('Unauthorized');
+      }
+
+      return res;
+    }
+
+    // =========================================================================
+    // Login component
+    // =========================================================================
+
+    function loginApp() {
+      return {
+        apiKey: '',
+        error: null,
+
+        isAuthenticated,
+
+        async login() {
+          if (!this.apiKey.trim()) return;
+
+          // Try a test request to verify the key
+          try {
+            const res = await fetch('/api/v1/agents', {
+              headers: { 'Authorization': 'Bearer ' + this.apiKey.trim() },
+            });
+
+            if (res.status === 401 || res.status === 403) {
+              this.error = 'Invalid API key. Please try again.';
+              return;
+            }
+
+            localStorage.setItem('adminApiKey', this.apiKey.trim());
+            window.location.reload();
+          } catch (e) {
+            this.error = 'Connection failed. Is the server running?';
+          }
+        },
+      };
+    }
+
+    // =========================================================================
+    // Main admin component
+    // =========================================================================
+
+    function adminApp() {
+      return {
+        tab: 'skills',
+        notification: null,
+
+        // Skills
+        skillsList: [],
+        skillErrors: [],
+        skillsLoading: false,
+        reloadResult: null,
+
+        // Agents
+        agentsList: [],
+        agentsLoading: false,
+        newAgentName: '',
+        newAgentKey: null,
+        agentCreating: false,
+        editingAgentId: null,
+        editingAgentName: '',
+        rotatingKeyId: null,
+        rotatedKey: null,
+
+        // Env vars
+        envVarsList: [],
+        envLoading: false,
+        newEnvKey: '',
+        newEnvValue: '',
+        newEnvDesc: '',
+        envCreating: false,
+        envCreateError: null,
+        editingEnvId: null,
+        editingEnvDesc: '',
+        editingEnvValue: '',
+
+        // Permissions
+        permAgentId: '',
+        permLoading: false,
+        grantedSkillNames: [],
+        grantedEnvVarIds: [],
+        allSkillsForPerms: [],
+        allEnvVarsForPerms: [],
+        // Map of skill name -> DB UUID, built from agent permissions responses
+        skillIdMap: {},
+
+        // Logs
+        logsList: [],
+        logsLoading: false,
+        logFilterAgent: '',
+        logFilterSkill: '',
+        logAutoRefresh: false,
+        logRefreshInterval: null,
+
+        isAuthenticated,
+
+        // ---- Init ----
+        async init() {
+          if (!isAuthenticated()) return;
+          await this.fetchSkills();
+          await this.fetchAgents();
+        },
+
+        // ---- Tab switch ----
+        async switchTab(t) {
+          this.tab = t;
+          if (t === 'skills') await this.fetchSkills();
+          if (t === 'agents') await this.fetchAgents();
+          if (t === 'envvars') await this.fetchEnvVars();
+          if (t === 'permissions') {
+            await this.fetchAgents();
+            await this.fetchAllSkillsForPerms();
+            await this.fetchAllEnvVarsForPerms();
+            await this.buildSkillIdMap();
+            if (this.permAgentId) await this.fetchPermissions();
+          }
+          if (t === 'logs') {
+            await this.fetchAgents();
+            await this.fetchLogs();
+          }
+        },
+
+        // ---- Notification ----
+        notify(type, message) {
+          this.notification = { type, message };
+        },
+
+        // ---- Clipboard ----
+        async copyToClipboard(text) {
+          try {
+            await navigator.clipboard.writeText(text);
+            this.notify('success', 'Copied to clipboard!');
+          } catch {
+            // Fallback
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            this.notify('success', 'Copied to clipboard!');
+          }
+        },
+
+        // ---- Date formatting ----
+        formatDate(ts) {
+          if (!ts) return '--';
+          return new Date(ts).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+
+        formatDateTime(ts) {
+          if (!ts) return '--';
+          return new Date(ts).toLocaleString('en-US', {
+            month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false,
+          });
+        },
+
+        // ---- Logout ----
+        logout() {
+          localStorage.removeItem('adminApiKey');
+          window.location.reload();
+        },
+
+        // ================================================================
+        // SKILLS
+        // ================================================================
+
+        async fetchSkills() {
+          this.skillsLoading = true;
+          try {
+            const res = await apiFetch('/api/v1/admin/skills');
+            const data = await res.json();
+            this.skillsList = data.skills || [];
+            this.skillErrors = data.errors || [];
+          } catch (e) {
+            this.notify('error', 'Failed to fetch skills');
+          } finally {
+            this.skillsLoading = false;
+          }
+        },
+
+        async reloadSkills() {
+          this.skillsLoading = true;
+          this.reloadResult = null;
+          try {
+            const res = await apiFetch('/api/v1/admin/skills/reload', { method: 'POST' });
+            const data = await res.json();
+            this.reloadResult = data;
+            await this.fetchSkills();
+            this.notify('success', 'Skills reloaded successfully');
+          } catch (e) {
+            this.notify('error', 'Failed to reload skills');
+          } finally {
+            this.skillsLoading = false;
+          }
+        },
+
+        // ================================================================
+        // AGENTS
+        // ================================================================
+
+        async fetchAgents() {
+          this.agentsLoading = true;
+          try {
+            const res = await apiFetch('/api/v1/agents');
+            this.agentsList = await res.json();
+          } catch (e) {
+            this.notify('error', 'Failed to fetch agents');
+          } finally {
+            this.agentsLoading = false;
+          }
+        },
+
+        async createAgent() {
+          if (!this.newAgentName.trim()) return;
+          this.agentCreating = true;
+          this.newAgentKey = null;
+          try {
+            const res = await apiFetch('/api/v1/agents', {
+              method: 'POST',
+              body: { name: this.newAgentName.trim() },
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.newAgentKey = data.apiKey;
+              this.newAgentName = '';
+              await this.fetchAgents();
+              this.notify('success', 'Agent created');
+            } else {
+              this.notify('error', data.error || 'Failed to create agent');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to create agent');
+          } finally {
+            this.agentCreating = false;
+          }
+        },
+
+        startEditAgent(agent) {
+          this.editingAgentId = agent.id;
+          this.editingAgentName = agent.name;
+        },
+
+        async saveAgentName(id) {
+          if (!this.editingAgentName.trim()) return;
+          try {
+            const res = await apiFetch('/api/v1/agents/' + id, {
+              method: 'PATCH',
+              body: { name: this.editingAgentName.trim() },
+            });
+            if (res.ok) {
+              this.editingAgentId = null;
+              await this.fetchAgents();
+              this.notify('success', 'Agent renamed');
+            } else {
+              const data = await res.json();
+              this.notify('error', data.error || 'Failed to update agent');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to update agent');
+          }
+        },
+
+        async deleteAgent(agent) {
+          if (!confirm('Delete agent "' + agent.name + '"? This cannot be undone.')) return;
+          try {
+            const res = await apiFetch('/api/v1/agents/' + agent.id, { method: 'DELETE' });
+            if (res.ok || res.status === 204) {
+              await this.fetchAgents();
+              this.notify('success', 'Agent deleted');
+            } else {
+              this.notify('error', 'Failed to delete agent');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to delete agent');
+          }
+        },
+
+        async rotateAgentKey(id) {
+          if (!confirm('Rotate API key? The old key will stop working immediately.')) return;
+          this.rotatingKeyId = id;
+          this.rotatedKey = null;
+          try {
+            const res = await apiFetch('/api/v1/agents/' + id + '/rotate', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+              this.rotatedKey = data.apiKey;
+              this.notify('success', 'API key rotated');
+            } else {
+              this.notify('error', data.error || 'Failed to rotate key');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to rotate key');
+          } finally {
+            this.rotatingKeyId = null;
+          }
+        },
+
+        // ================================================================
+        // ENV VARS
+        // ================================================================
+
+        async fetchEnvVars() {
+          this.envLoading = true;
+          try {
+            const res = await apiFetch('/api/v1/env-vars');
+            this.envVarsList = await res.json();
+          } catch (e) {
+            this.notify('error', 'Failed to fetch env vars');
+          } finally {
+            this.envLoading = false;
+          }
+        },
+
+        async createEnvVar() {
+          if (!this.newEnvKey.trim() || !this.newEnvValue.trim()) return;
+          this.envCreating = true;
+          this.envCreateError = null;
+          try {
+            const res = await apiFetch('/api/v1/env-vars', {
+              method: 'POST',
+              body: {
+                key: this.newEnvKey.trim(),
+                value: this.newEnvValue.trim(),
+                description: this.newEnvDesc.trim() || undefined,
+              },
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.newEnvKey = '';
+              this.newEnvValue = '';
+              this.newEnvDesc = '';
+              await this.fetchEnvVars();
+              this.notify('success', 'Environment variable created');
+            } else {
+              this.envCreateError = data.error || 'Failed to create env var';
+            }
+          } catch (e) {
+            this.envCreateError = 'Failed to create env var';
+          } finally {
+            this.envCreating = false;
+          }
+        },
+
+        startEditEnvVar(ev) {
+          this.editingEnvId = ev.id;
+          this.editingEnvDesc = ev.description || '';
+          this.editingEnvValue = '';
+        },
+
+        async saveEnvVar(id) {
+          const body = {};
+          if (this.editingEnvValue.trim()) {
+            body.value = this.editingEnvValue.trim();
+          }
+          body.description = this.editingEnvDesc;
+
+          try {
+            const res = await apiFetch('/api/v1/env-vars/' + id, {
+              method: 'PATCH',
+              body,
+            });
+            if (res.ok) {
+              this.editingEnvId = null;
+              await this.fetchEnvVars();
+              this.notify('success', 'Environment variable updated');
+            } else {
+              const data = await res.json();
+              this.notify('error', data.error || 'Failed to update');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to update env var');
+          }
+        },
+
+        async deleteEnvVar(ev) {
+          if (!confirm('Delete environment variable "' + ev.key + '"?')) return;
+          try {
+            const res = await apiFetch('/api/v1/env-vars/' + ev.id, { method: 'DELETE' });
+            if (res.ok || res.status === 204) {
+              await this.fetchEnvVars();
+              this.notify('success', 'Environment variable deleted');
+            } else {
+              this.notify('error', 'Failed to delete env var');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to delete env var');
+          }
+        },
+
+        // ================================================================
+        // PERMISSIONS
+        // ================================================================
+
+        async fetchAllSkillsForPerms() {
+          try {
+            const res = await apiFetch('/api/v1/admin/skills');
+            const data = await res.json();
+            this.allSkillsForPerms = data.skills || [];
+            // Admin skills API now returns DB IDs — populate the map
+            for (const s of this.allSkillsForPerms) {
+              if (s.id) this.skillIdMap[s.name] = s.id;
+            }
+          } catch (e) { /* ignore */ }
+        },
+
+        async fetchAllEnvVarsForPerms() {
+          try {
+            const res = await apiFetch('/api/v1/env-vars');
+            this.allEnvVarsForPerms = await res.json();
+          } catch (e) { /* ignore */ }
+        },
+
+        async fetchPermissions() {
+          if (!this.permAgentId) return;
+          this.permLoading = true;
+          try {
+            const res = await apiFetch('/api/v1/agents/' + this.permAgentId + '/permissions');
+            const data = await res.json();
+            this.grantedSkillNames = (data.skills || []).map(s => s.name);
+            this.grantedEnvVarIds = (data.envVars || []).map(e => e.id);
+            // Populate skill name -> id map from this response
+            for (const s of (data.skills || [])) {
+              this.skillIdMap[s.name] = s.id;
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to fetch permissions');
+          } finally {
+            this.permLoading = false;
+          }
+        },
+
+        isSkillGranted(name) {
+          return this.grantedSkillNames.includes(name);
+        },
+
+        isEnvVarGranted(id) {
+          return this.grantedEnvVarIds.includes(id);
+        },
+
+        async toggleSkillPerm(skill, checked) {
+          // The admin/skills endpoint does not return DB IDs; the permissions
+          // endpoint does. We maintain a skillIdMap (name -> id) that is
+          // populated from the permissions responses of all agents when the
+          // permissions tab opens (see buildSkillIdMap).
+          if (!this.permAgentId) return;
+
+          const skillId = this.skillIdMap[skill.name];
+
+          if (!skillId) {
+            this.notify('error', 'Cannot resolve DB ID for skill "' + skill.name + '". Reload skills and try again.');
+            await this.fetchPermissions();
+            return;
+          }
+
+          try {
+            if (checked) {
+              await apiFetch('/api/v1/agents/' + this.permAgentId + '/skills/' + skillId, { method: 'POST' });
+              if (!this.grantedSkillNames.includes(skill.name)) {
+                this.grantedSkillNames.push(skill.name);
+              }
+            } else {
+              await apiFetch('/api/v1/agents/' + this.permAgentId + '/skills/' + skillId, { method: 'DELETE' });
+              this.grantedSkillNames = this.grantedSkillNames.filter(n => n !== skill.name);
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to update skill permission');
+            await this.fetchPermissions();
+          }
+        },
+
+        // Build a complete skill name -> DB id mapping by scanning
+        // every agent's permissions. This is called once when the
+        // permissions tab opens. The map is cached for the session.
+        async buildSkillIdMap() {
+          if (Object.keys(this.skillIdMap).length > 0) return; // already built
+          for (const agent of this.agentsList) {
+            try {
+              const res = await apiFetch('/api/v1/agents/' + agent.id + '/permissions');
+              const data = await res.json();
+              for (const s of (data.skills || [])) {
+                this.skillIdMap[s.name] = s.id;
+              }
+            } catch (e) { /* ignore */ }
+          }
+        },
+
+        async toggleEnvVarPerm(ev, checked) {
+          if (!this.permAgentId) return;
+
+          try {
+            if (checked) {
+              await apiFetch('/api/v1/agents/' + this.permAgentId + '/env-vars/' + ev.id, { method: 'POST' });
+              if (!this.grantedEnvVarIds.includes(ev.id)) {
+                this.grantedEnvVarIds.push(ev.id);
+              }
+            } else {
+              await apiFetch('/api/v1/agents/' + this.permAgentId + '/env-vars/' + ev.id, { method: 'DELETE' });
+              this.grantedEnvVarIds = this.grantedEnvVarIds.filter(id => id !== ev.id);
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to update env var permission');
+            await this.fetchPermissions();
+          }
+        },
+
+        // ================================================================
+        // LOGS
+        // ================================================================
+
+        async fetchLogs() {
+          this.logsLoading = true;
+          try {
+            const params = new URLSearchParams();
+            params.set('limit', '100');
+            if (this.logFilterAgent) params.set('agentId', this.logFilterAgent);
+            if (this.logFilterSkill.trim()) params.set('skillName', this.logFilterSkill.trim());
+
+            const res = await apiFetch('/api/v1/execution-logs?' + params.toString());
+            this.logsList = await res.json();
+          } catch (e) {
+            this.notify('error', 'Failed to fetch logs');
+          } finally {
+            this.logsLoading = false;
+          }
+        },
+
+        toggleAutoRefresh() {
+          if (this.logAutoRefresh) {
+            this.logRefreshInterval = setInterval(() => this.fetchLogs(), 10000);
+          } else {
+            if (this.logRefreshInterval) {
+              clearInterval(this.logRefreshInterval);
+              this.logRefreshInterval = null;
+            }
+          }
+        },
+      };
+    }
+  </script>
+
+  <!-- Alpine cloak: hide elements until Alpine initializes -->
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+
+</body>
+</html>
