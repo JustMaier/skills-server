@@ -719,6 +719,7 @@
                   <th>Name</th>
                   <th>Description</th>
                   <th>Scripts</th>
+                  <th>Env Vars</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -735,6 +736,9 @@
                       </div>
                     </td>
                     <td>
+                      <button class="btn btn-sm" @click="openSkillEnvVars(skill.id)" x-text="skillEnvVarEditId === skill.id ? 'Close' : 'Configure'"></button>
+                    </td>
+                    <td>
                       <template x-if="skill.parseError">
                         <span class="badge badge-error" x-text="skill.parseError"></span>
                       </template>
@@ -746,6 +750,32 @@
                 </template>
               </tbody>
             </table>
+          </div>
+
+          <!-- Skill Env Var Configuration Panel -->
+          <div x-show="skillEnvVarEditId" class="card" style="margin-top: 12px; border-color: var(--accent);">
+            <div class="card-title" style="margin-bottom: 12px;">
+              Environment Variables for: <span class="mono" x-text="skillsList.find(s => s.id === skillEnvVarEditId)?.name || ''"></span>
+            </div>
+            <p class="text-dim" style="font-size:13px; margin-bottom:12px;">
+              Check the env vars this skill needs. During execution, only env vars linked here AND granted to the agent will be injected.
+            </p>
+            <div x-show="allEnvVarsForSkills.length === 0" class="text-dim" style="padding:8px 0;">
+              No environment variables configured. Create env vars in the Env Vars tab first.
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <template x-for="ev in allEnvVarsForSkills" :key="ev.id">
+                <label class="perm-card" style="min-width: 180px; cursor: pointer;">
+                  <input type="checkbox"
+                    :checked="skillEnvVarLinked.includes(ev.id)"
+                    @change="toggleSkillEnvVar(skillEnvVarEditId, ev.id, $event.target.checked)">
+                  <div>
+                    <strong x-text="ev.key"></strong>
+                    <div class="text-dim" style="font-size:12px;" x-text="ev.description || ''"></div>
+                  </div>
+                </label>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -1180,6 +1210,10 @@
         skillErrors: [],
         skillsLoading: false,
         reloadResult: null,
+        // Skill env var configuration
+        skillEnvVarEditId: null,
+        skillEnvVarLinked: [],
+        allEnvVarsForSkills: [],
 
         // Agents
         agentsList: [],
@@ -1324,6 +1358,41 @@
             this.notify('error', 'Failed to reload skills');
           } finally {
             this.skillsLoading = false;
+          }
+        },
+
+        async openSkillEnvVars(skillId) {
+          if (this.skillEnvVarEditId === skillId) {
+            this.skillEnvVarEditId = null;
+            return;
+          }
+          this.skillEnvVarEditId = skillId;
+          // Fetch all env vars for the checkbox list
+          try {
+            const res = await apiFetch('/api/v1/env-vars');
+            this.allEnvVarsForSkills = await res.json();
+          } catch (e) { /* ignore */ }
+          // Fetch which env vars are linked to this skill
+          try {
+            const res = await apiFetch('/api/v1/admin/skills/' + skillId + '/env-vars');
+            const data = await res.json();
+            this.skillEnvVarLinked = (data.envVars || []).map(ev => ev.id);
+          } catch (e) {
+            this.skillEnvVarLinked = [];
+          }
+        },
+
+        async toggleSkillEnvVar(skillId, envVarId, checked) {
+          try {
+            if (checked) {
+              await apiFetch('/api/v1/admin/skills/' + skillId + '/env-vars/' + envVarId, { method: 'POST' });
+              if (!this.skillEnvVarLinked.includes(envVarId)) this.skillEnvVarLinked.push(envVarId);
+            } else {
+              await apiFetch('/api/v1/admin/skills/' + skillId + '/env-vars/' + envVarId, { method: 'DELETE' });
+              this.skillEnvVarLinked = this.skillEnvVarLinked.filter(id => id !== envVarId);
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to update skill env var');
           }
         },
 

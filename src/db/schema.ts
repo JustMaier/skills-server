@@ -65,6 +65,24 @@ export const agentSkills = sqliteTable(
 export type AgentSkill = typeof agentSkills.$inferSelect;
 export type NewAgentSkill = typeof agentSkills.$inferInsert;
 
+// ─── Skill <-> EnvVar (many-to-many) ────────────────────────────────────────
+
+export const skillEnvVars = sqliteTable(
+  "skill_env_vars",
+  {
+    skillId: text("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    envVarId: text("env_var_id")
+      .notNull()
+      .references(() => envVars.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.skillId, table.envVarId] })],
+);
+
+export type SkillEnvVar = typeof skillEnvVars.$inferSelect;
+export type NewSkillEnvVar = typeof skillEnvVars.$inferInsert;
+
 // ─── Agent <-> EnvVar (many-to-many) ────────────────────────────────────────
 
 export const agentEnvVars = sqliteTable(

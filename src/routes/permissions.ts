@@ -208,12 +208,12 @@ app.openapi(setSkillsRoute, async (c) => {
   }
 
   // Atomic replace: delete + insert in a transaction
-  await db.transaction(async (tx) => {
-    await tx.delete(agentSkills).where(eq(agentSkills.agentId, id));
+  db.transaction((tx) => {
+    tx.delete(agentSkills).where(eq(agentSkills.agentId, id)).run();
     if (skillIds.length > 0) {
-      await tx.insert(agentSkills).values(
+      tx.insert(agentSkills).values(
         skillIds.map((skillId) => ({ agentId: id, skillId })),
-      );
+      ).run();
     }
   });
 
@@ -239,12 +239,12 @@ app.openapi(setEnvVarsRoute, async (c) => {
   }
 
   // Atomic replace: delete + insert in a transaction
-  await db.transaction(async (tx) => {
-    await tx.delete(agentEnvVars).where(eq(agentEnvVars.agentId, id));
+  db.transaction((tx) => {
+    tx.delete(agentEnvVars).where(eq(agentEnvVars.agentId, id)).run();
     if (envVarIds.length > 0) {
-      await tx.insert(agentEnvVars).values(
+      tx.insert(agentEnvVars).values(
         envVarIds.map((envVarId) => ({ agentId: id, envVarId })),
-      );
+      ).run();
     }
   });
 

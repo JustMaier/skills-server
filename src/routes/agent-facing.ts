@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { eq, and } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
-import { db, agentSkills, skills, agentEnvVars, envVars, executionLogs } from '../db/index.js';
+import { db, agentSkills, skills, agentEnvVars, skillEnvVars, envVars, executionLogs } from '../db/index.js';
 import { agentAuth, type AuthEnv } from '../services/auth.js';
 import { createSkillsManager } from '../services/discovery.js';
 import { executeScript, type ExecutionResult } from '../services/executor.js';
@@ -267,7 +267,8 @@ export function createAgentFacingRoutes(
       return c.json({ error: 'Script not allowed for this skill' }, 403);
     }
 
-    // Gather the agent's granted environment variables
+    // Gather env vars: intersection of agent grants AND skill requirements.
+    // Strict: if the skill has no skill_env_vars entries, no env vars are injected.
     const grantedEnvVars = await db
       .select({
         key: envVars.key,
@@ -275,6 +276,10 @@ export function createAgentFacingRoutes(
       })
       .from(agentEnvVars)
       .innerJoin(envVars, eq(agentEnvVars.envVarId, envVars.id))
+      .innerJoin(skillEnvVars, and(
+        eq(skillEnvVars.envVarId, envVars.id),
+        eq(skillEnvVars.skillId, access.skillRow.id),
+      ))
       .where(eq(agentEnvVars.agentId, agent.id));
 
     // Decrypt each env var into a plain key-value map

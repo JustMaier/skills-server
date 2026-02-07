@@ -53,6 +53,12 @@ sqlite.exec(`
     PRIMARY KEY (agent_id, skill_id)
   );
 
+  CREATE TABLE IF NOT EXISTS skill_env_vars (
+    skill_id    TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    env_var_id  TEXT NOT NULL REFERENCES env_vars(id) ON DELETE CASCADE,
+    PRIMARY KEY (skill_id, env_var_id)
+  );
+
   CREATE TABLE IF NOT EXISTS agent_env_vars (
     agent_id    TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     env_var_id  TEXT NOT NULL REFERENCES env_vars(id) ON DELETE CASCADE,
