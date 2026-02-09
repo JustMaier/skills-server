@@ -191,14 +191,18 @@ export function createSkillsServer(serverUrl: string, apiKey: string) {
 // ---------------------------------------------------------------------------
 
 /**
- * Creates the MCP server and returns a configuration object that can be
- * spread directly into the `options` parameter of `query()`.
+ * Creates the MCP server, pre-fetches the skill catalog, and returns a
+ * configuration object that can be spread directly into the `options`
+ * parameter of `query()`.
+ *
+ * The returned `systemPrompt` lists each skill's name, description, and
+ * scripts so the agent knows what's available from the first turn.
  *
  * ```ts
  * import { query } from "@anthropic-ai/claude-agent-sdk";
  * import { createSkillsServerConfig } from "@skills-server/client-agent-sdk";
  *
- * const config = createSkillsServerConfig("http://localhost:3000", "my-api-key");
+ * const config = await createSkillsServerConfig("http://localhost:3000", "my-api-key");
  *
  * for await (const msg of query({
  *   prompt: "List the available skills",
@@ -211,8 +215,34 @@ export function createSkillsServer(serverUrl: string, apiKey: string) {
  * @param serverUrl  Base URL of the skills server
  * @param apiKey     Bearer token for agent authentication
  */
-export function createSkillsServerConfig(serverUrl: string, apiKey: string) {
+export async function createSkillsServerConfig(serverUrl: string, apiKey: string) {
   const server = createSkillsServer(serverUrl, apiKey);
+
+  // Pre-fetch skill catalog for system prompt injection
+  const baseUrl = serverUrl.replace(/\/+$/, "");
+  let catalogPrompt = "";
+  try {
+    const res = await fetch(`${baseUrl}/api/v1/skills`, {
+      headers: { "Authorization": `Bearer ${apiKey}` },
+    });
+    if (res.ok) {
+      const skills = (await res.json()) as SkillSummary[];
+      if (skills.length > 0) {
+        const lines = skills.map((s) => {
+          const desc = s.description ?? "(no description)";
+          const scripts = s.scripts.length > 0 ? s.scripts.join(", ") : "none";
+          return `- **${s.name}**: ${desc} [scripts: ${scripts}]`;
+        });
+        catalogPrompt =
+          "\n\n## Available Skills\n\n" +
+          "Use `load_skill` to read a skill's full instructions before using it.\n\n" +
+          lines.join("\n");
+      }
+    }
+  } catch {
+    // Best-effort; agent can still use list_skills tool
+  }
+
   return {
     mcpServers: { "skills-server": server } as Record<string, typeof server>,
     allowedTools: [
@@ -220,5 +250,12 @@ export function createSkillsServerConfig(serverUrl: string, apiKey: string) {
       "mcp__skills-server__load_skill",
       "mcp__skills-server__execute_skill",
     ],
+    systemPrompt: {
+      type: "preset" as const,
+      preset: "claude_code" as const,
+      append: catalogPrompt,
+    },
+    /** Raw catalog string for manual system prompt composition. */
+    skillsCatalog: catalogPrompt,
   };
 }

@@ -25,7 +25,7 @@ if (!serverUrl || !apiKey) {
   process.exit(1);
 }
 
-const config = createSkillsServerConfig(serverUrl, apiKey);
+const config = await createSkillsServerConfig(serverUrl, apiKey);
 
 console.log("Starting agent with skills server at:", serverUrl);
 console.log("Available tools:", config.allowedTools.join(", "));

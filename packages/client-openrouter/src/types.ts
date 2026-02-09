@@ -85,4 +85,6 @@ export interface SkillsProvider {
   skillNames: string[];
   /** Map of skill name to full detail (populated on load_skill calls). */
   skills: Map<string, SkillDetail>;
+  /** Pre-built catalog of skill names, descriptions, and scripts for system prompt injection. */
+  skillsCatalog: string;
 }

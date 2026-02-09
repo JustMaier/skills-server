@@ -144,11 +144,23 @@ export async function createSkillsProvider(
   // Map of fully loaded skill definitions (populated lazily via load_skill)
   const skillsMap = new Map<string, SkillDetail>();
 
+  // Build a catalog string for system prompt injection
+  const catalogLines = filteredSummaries.map((s) => {
+    const desc = s.description ?? '(no description)';
+    const scripts = s.scripts.length > 0 ? s.scripts.join(', ') : 'none';
+    return `- **${s.name}**: ${desc} [scripts: ${scripts}]`;
+  });
+  const skillsCatalog =
+    '## Available Skills\n\n' +
+    'Use `load_skill` to read a skill\'s full instructions before using it.\n\n' +
+    catalogLines.join('\n');
+
   const provider: SkillsProvider = {
     get skillNames() {
       return [...summaryMap.keys()];
     },
     skills: skillsMap,
+    skillsCatalog,
 
     handleToolCall: async (
       name: string,

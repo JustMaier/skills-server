@@ -65,6 +65,7 @@ The provider exposes:
 |---|---|---|
 | `skillNames` | `string[]` | Names of available skills |
 | `skills` | `Map<string, SkillDetail>` | Loaded skill definitions (populated lazily) |
+| `skillsCatalog` | `string` | Pre-built catalog of skill names, descriptions, and scripts for system prompt injection |
 | `handleToolCall(name, args)` | `Promise<SkillExecutionResult>` | Execute a tool call |
 
 The `handleToolCall` method supports two tool names:
@@ -221,6 +222,7 @@ interface SkillsProvider {
   handleToolCall(name: string, args: Record<string, unknown>): Promise<SkillExecutionResult>;
   skillNames: string[];
   skills: Map<string, SkillDetail>;
+  skillsCatalog: string;
 }
 ```
 

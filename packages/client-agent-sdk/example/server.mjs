@@ -32,7 +32,7 @@ if (!SKILLS_SERVER_URL || !SKILLS_SERVER_API_KEY) {
 
 // --- Skills server MCP config ---
 
-const skillsConfig = createSkillsServerConfig(
+const skillsConfig = await createSkillsServerConfig(
   SKILLS_SERVER_URL,
   SKILLS_SERVER_API_KEY,
 );
@@ -141,10 +141,6 @@ async function handleChat(req, res) {
       ...skillsConfig,
       maxTurns: 10,
       includePartialMessages: true,
-      systemPrompt:
-        'You are a helpful assistant with access to skills via the skills server. ' +
-        'When asked to do something that a skill can help with, use the available tools: ' +
-        'list_skills to discover skills, load_skill to read a skill, and execute_skill to run scripts.',
     };
 
     // Resume existing session if available

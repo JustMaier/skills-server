@@ -16,13 +16,13 @@ npm install @anthropic-ai/claude-agent-sdk zod
 
 ## Quick Start
 
-The fastest way to get started is with `createSkillsServerConfig()`, which returns an object you can spread directly into `query()` options:
+The fastest way to get started is with `createSkillsServerConfig()`, which pre-fetches available skills and returns an object you can spread directly into `query()` options. The returned `systemPrompt` uses the `claude_code` preset with the skills catalog appended, so the agent knows what's available from the first turn.
 
 ```typescript
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { createSkillsServerConfig } from "@skills-server/client-agent-sdk";
 
-const config = createSkillsServerConfig(
+const config = await createSkillsServerConfig(
   "http://localhost:3000",   // skills server URL
   "your-agent-api-key",     // agent API key
 );
@@ -145,15 +145,15 @@ See `example/.env.example` for the required environment variables.
 
 ## API Reference
 
-### `createSkillsServerConfig(serverUrl, apiKey)`
+### `await createSkillsServerConfig(serverUrl, apiKey)`
 
-Creates an MCP server and returns a configuration object ready to spread into `query()` options.
+Creates an MCP server, pre-fetches the skills catalog, and returns a configuration object ready to spread into `query()` options.
 
 **Parameters:**
 - `serverUrl` (string) -- Base URL of the skills server
 - `apiKey` (string) -- Bearer token for agent authentication
 
-**Returns:** `{ mcpServers, allowedTools }` -- spread this into `query()` options.
+**Returns:** `{ mcpServers, allowedTools, systemPrompt, skillsCatalog }` -- spread this into `query()` options. The `systemPrompt` uses the `claude_code` preset with the skills catalog appended. The raw `skillsCatalog` string is also available for manual composition.
 
 ### `createSkillsServer(serverUrl, apiKey)`
 
