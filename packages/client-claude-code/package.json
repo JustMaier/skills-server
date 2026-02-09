@@ -1,0 +1,10 @@
+{
+  "name": "@skills-server/client-claude-code",
+  "version": "0.1.0",
+  "description": "Claude Code skill for connecting to a remote skills server",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

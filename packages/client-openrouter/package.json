@@ -1,0 +1,31 @@
+{
+  "name": "@skills-server/client-openrouter",
+  "version": "0.1.0",
+  "description": "OpenRouter SDK client for the skills server — use remote skills as tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "@openrouter/sdk": "^0.8.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@openrouter/sdk": "^0.8.0",
+    "typescript": "^5.7.0",
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skills Server - OpenRouter Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e1e4e8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 12px 20px;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 16px; font-weight: 600; }
+
+    header .badge {
+      font-size: 11px;
+      background: #1f6feb33;
+      color: #58a6ff;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .msg {
+      max-width: 720px;
+      width: 100%;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .msg.user {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 12px 16px;
+    }
+
+    .msg.assistant { padding: 4px 0; }
+
+    .msg.assistant pre {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .msg.assistant code {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .tool-event {
+      max-width: 720px;
+      width: 100%;
+      margin: 0 auto;
+      font-size: 13px;
+      font-family: 'SF Mono', Consolas, monospace;
+      border-left: 3px solid #30363d;
+      padding: 8px 12px;
+      background: #161b2266;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .tool-event.call { border-left-color: #d29922; }
+    .tool-event.result { border-left-color: #3fb950; }
+
+    .tool-event .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .tool-event.call .label { color: #d29922; }
+    .tool-event.result .label { color: #3fb950; }
+
+    .tool-event .body {
+      color: #8b949e;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #input-area {
+      border-top: 1px solid #21262d;
+      padding: 16px 20px;
+      flex-shrink: 0;
+    }
+
+    #input-area form {
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      gap: 8px;
+    }
+
+    #input-area textarea {
+      flex: 1;
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #e1e4e8;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: none;
+      min-height: 44px;
+      max-height: 160px;
+      line-height: 1.5;
+    }
+
+    #input-area textarea:focus { outline: none; border-color: #58a6ff; }
+    #input-area textarea::placeholder { color: #484f58; }
+
+    #input-area button {
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0 20px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    #input-area button:hover { background: #2ea043; }
+    #input-area button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+
+    #model-select {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #e1e4e8;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: 'SF Mono', Consolas, monospace;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #model-select:focus { border-color: #58a6ff; }
+
+    #new-chat-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    #new-chat-btn:hover { border-color: #58a6ff; color: #e1e4e8; }
+
+    .empty-state {
+      text-align: center;
+      color: #484f58;
+      margin: auto;
+      padding: 40px 20px;
+    }
+
+    .empty-state h2 { font-size: 20px; margin-bottom: 8px; color: #8b949e; }
+    .empty-state p { font-size: 14px; line-height: 1.6; }
+
+    .streaming-cursor::after {
+      content: '';
+      display: inline-block;
+      width: 7px;
+      height: 16px;
+      background: #58a6ff;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Skills Server</h1>
+    <span class="badge">OpenRouter Demo</span>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+      <label for="model-select" style="font-size:12px; color:#8b949e;">Model:</label>
+      <select id="model-select">
+        <option value="">Loading...</option>
+      </select>
+      <button id="new-chat-btn">New Chat</button>
+    </div>
+  </header>
+
+  <div id="chat">
+    <div class="empty-state" id="empty">
+      <h2>Skills Server + OpenRouter</h2>
+      <p>This agent has access to remote skills via the skills server.<br>
+         Type a message below to get started.</p>
+    </div>
+  </div>
+
+  <div id="input-area">
+    <form id="form">
+      <textarea id="input" placeholder="Ask the agent something..." rows="1"></textarea>
+      <button type="submit" id="send-btn">Send</button>
+    </form>
+  </div>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send-btn');
+    const modelSelect = document.getElementById('model-select');
+    const newChatBtn = document.getElementById('new-chat-btn');
+
+    const emptyStateHtml = document.getElementById('empty').outerHTML;
+
+    // Load config from server
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((cfg) => {
+        modelSelect.innerHTML = cfg.models
+          .map(
+            (m) =>
+              `<option value="${m}"${m === cfg.defaultModel ? ' selected' : ''}>${m}</option>`,
+          )
+          .join('');
+
+        // Update empty state with skill names if available
+        if (cfg.skills && cfg.skills.length > 0) {
+          const emptyEl = document.getElementById('empty');
+          if (emptyEl) {
+            const skillList = cfg.skills.join(', ');
+            emptyEl.querySelector('p').innerHTML =
+              `This agent has access to: <strong>${skillList}</strong><br>Type a message below to get started.`;
+          }
+        }
+      })
+      .catch(() => {
+        modelSelect.innerHTML =
+          '<option value="anthropic/claude-sonnet-4">anthropic/claude-sonnet-4</option>';
+      });
+
+    let sessionId = null;
+    let busy = false;
+
+    // New Chat
+    newChatBtn.addEventListener('click', () => {
+      if (busy) return;
+      sessionId = null;
+      chat.innerHTML = emptyStateHtml;
+      input.value = '';
+      input.style.height = 'auto';
+      input.focus();
+    });
+
+    // Auto-resize textarea
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+    });
+
+    // Submit on Enter (shift+enter for newline)
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        form.dispatchEvent(new Event('submit'));
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text || busy) return;
+
+      busy = true;
+      sendBtn.disabled = true;
+      input.value = '';
+      input.style.height = 'auto';
+
+      // Hide empty state
+      const empty = document.getElementById('empty');
+      if (empty) empty.remove();
+
+      appendMsg('user', text);
+
+      // Create streaming assistant message
+      const assistantEl = appendMsg('assistant', '');
+      assistantEl.classList.add('streaming-cursor');
+
+      let assistantText = '';
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            model: modelSelect.value,
+            sessionId,
+          }),
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let chunk;
+            try {
+              chunk = JSON.parse(line.slice(6));
+            } catch {
+              continue;
+            }
+
+            switch (chunk.type) {
+              case 'session':
+                sessionId = chunk.sessionId;
+                break;
+
+              case 'text_delta':
+                assistantText += chunk.delta;
+                assistantEl.innerHTML = renderMarkdown(assistantText);
+                scrollToBottom();
+                break;
+
+              case 'content':
+                if (chunk.content) {
+                  assistantText = chunk.content;
+                  assistantEl.innerHTML = renderMarkdown(assistantText);
+                  scrollToBottom();
+                }
+                break;
+
+              case 'tool_call':
+                appendToolEvent('call', chunk.name, chunk.arguments, assistantEl);
+                scrollToBottom();
+                break;
+
+              case 'tool_result':
+                appendToolEvent('result', chunk.name, chunk.result, assistantEl);
+                scrollToBottom();
+                break;
+
+              case 'error':
+                assistantEl.innerHTML = `<span style="color:#f85149">Error: ${escapeHtml(chunk.error)}</span>`;
+                break;
+
+              case 'done':
+                break;
+            }
+          }
+        }
+      } catch (err) {
+        assistantEl.innerHTML = `<span style="color:#f85149">Network error: ${escapeHtml(err.message)}</span>`;
+      }
+
+      assistantEl.classList.remove('streaming-cursor');
+
+      busy = false;
+      sendBtn.disabled = false;
+      input.focus();
+    });
+
+    function appendMsg(role, content) {
+      const el = document.createElement('div');
+      el.className = `msg ${role}`;
+      el.innerHTML =
+        role === 'user' ? escapeHtml(content) : renderMarkdown(content);
+      chat.appendChild(el);
+      scrollToBottom();
+      return el;
+    }
+
+    function appendToolEvent(kind, name, body, beforeEl) {
+      const el = document.createElement('div');
+      el.className = `tool-event ${kind}`;
+
+      let bodyText = body;
+      try {
+        const parsed = JSON.parse(body);
+        bodyText = JSON.stringify(parsed, null, 2);
+      } catch {
+        /* keep as-is */
+      }
+
+      el.innerHTML = `
+        <div class="label">${kind === 'call' ? 'Tool Call' : 'Result'}: ${escapeHtml(name)}</div>
+        <div class="body">${escapeHtml(bodyText)}</div>
+      `;
+      chat.insertBefore(el, beforeEl);
+    }
+
+    function scrollToBottom() {
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /** Minimal markdown renderer */
+    function renderMarkdown(md) {
+      if (!md) return '';
+
+      // Code blocks
+      let html = md.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        return `<pre><code>${escapeHtml(code.trimEnd())}</code></pre>`;
+      });
+
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, (_, code) => {
+        return `<code style="background:#161b22;padding:2px 5px;border-radius:3px">${escapeHtml(code)}</code>`;
+      });
+
+      // Bold
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      // Paragraphs and line breaks
+      html = html.replace(/\n\n/g, '</p><p>');
+      html = html.replace(/\n/g, '<br>');
+      html = `<p>${html}</p>`;
+
+      return html;
+    }
+  </script>
+</body>
+</html>

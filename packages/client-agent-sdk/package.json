@@ -1,0 +1,31 @@
+{
+  "name": "@skills-server/client-agent-sdk",
+  "version": "0.1.0",
+  "description": "Claude Agent SDK client for the skills server — use remote skills as MCP tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*",
+    "typescript": "^5.7.0",
+    "zod": "^4.3.6"
+  }
+}

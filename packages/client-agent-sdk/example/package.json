@@ -1,0 +1,11 @@
+{
+  "name": "skills-server-agent-sdk-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env server.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*"
+  }
+}

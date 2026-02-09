@@ -1,0 +1,11 @@
+{
+  "name": "skills-server-openrouter-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env server.mjs"
+  },
+  "dependencies": {
+    "@openrouter/sdk": "^0.8.0"
+  }
+}
