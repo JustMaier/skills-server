@@ -19,6 +19,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "dependencies": {
+    "@skills-server/client-core": "0.1.0"
+  },
   "peerDependencies": {
     "@anthropic-ai/claude-agent-sdk": "*",
     "zod": "^4.0.0"

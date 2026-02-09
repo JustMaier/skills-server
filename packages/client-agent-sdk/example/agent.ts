@@ -28,12 +28,12 @@ if (!serverUrl || !apiKey) {
 const config = await createSkillsServerConfig(serverUrl, apiKey);
 
 console.log("Starting agent with skills server at:", serverUrl);
-console.log("Available tools:", config.allowedTools.join(", "));
+console.log("Available skills:", config.client.skills.map((s) => s.name).join(", ") || "(none)");
 console.log("---\n");
 
 for await (const message of query({
   prompt:
-    "List the available skills, then load the hello skill and run its script with 'world' as an argument.",
+    "Load the hello skill and run its script with 'world' as an argument.",
   options: {
     ...config,
     maxTurns: 10,

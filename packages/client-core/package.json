@@ -1,0 +1,22 @@
+{
+  "name": "@skills-server/client-core",
+  "version": "0.1.0",
+  "description": "Shared HTTP client, types, and helpers for skills-server SDK clients",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

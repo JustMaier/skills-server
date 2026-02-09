@@ -230,14 +230,11 @@
     fetch('/api/config')
       .then(function (r) { return r.json(); })
       .then(function (cfg) {
-        if (cfg.tools && cfg.tools.length > 0) {
+        if (cfg.skills && cfg.skills.length > 0) {
           var emptyEl = document.getElementById('empty');
           if (emptyEl) {
-            var toolList = cfg.tools
-              .map(function (t) { return t.replace('mcp__skills-server__', ''); })
-              .join(', ');
             emptyEl.querySelector('p').innerHTML =
-              'Available tools: <strong>' + toolList + '</strong><br>' +
+              'Available skills: <strong>' + cfg.skills.join(', ') + '</strong><br>' +
               'Type a message below to get started.';
           }
         }

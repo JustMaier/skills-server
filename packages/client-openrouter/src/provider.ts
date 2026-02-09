@@ -1,81 +1,20 @@
 import { tool } from '@openrouter/sdk';
 import type { NextTurnParamsContext } from '@openrouter/sdk';
 import { z } from 'zod';
+import {
+  SkillsClient,
+  toToolResult,
+  failResult,
+  type SkillDetail,
+  type ExecutionResult,
+  type ToolResult,
+} from '@skills-server/client-core';
 import type {
-  SkillSummary,
-  SkillDetail,
-  SkillExecutionResult,
-  SkillToolResult,
   SkillsProvider,
   ProviderOptions,
   TurnEvent,
   TurnOutput,
 } from './types.js';
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function fail(error: string, stderr = ''): SkillExecutionResult {
-  return { success: false, stdout: '', stderr, exitCode: -1, error, durationMs: 0 };
-}
-
-function matchesFilter(
-  name: string,
-  include?: string[],
-  exclude?: string[],
-): boolean {
-  if (exclude?.length && exclude.some((p) => matchGlob(name, p))) return false;
-  if (include?.length) return include.some((p) => matchGlob(name, p));
-  return true;
-}
-
-/** Simple glob matching supporting * and ? wildcards. */
-function matchGlob(str: string, pattern: string): boolean {
-  const regex = new RegExp(
-    '^' +
-      pattern
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '.*')
-        .replace(/\?/g, '.') +
-      '$',
-  );
-  return regex.test(str);
-}
-
-/**
- * Make an authenticated request to the skills server.
- * Throws on network errors and non-2xx responses.
- */
-async function request<T>(
-  serverUrl: string,
-  apiKey: string,
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const url = `${serverUrl.replace(/\/+$/, '')}${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const body = (await res.json()) as { error?: string };
-      detail = body.error ?? '';
-    } catch {
-      detail = res.statusText;
-    }
-    throw new Error(`Skills server ${res.status}: ${detail || res.statusText}`);
-  }
-
-  return (await res.json()) as T;
-}
 
 // ---------------------------------------------------------------------------
 // Zod schema for tool results (shared by SDK tools)
@@ -89,20 +28,10 @@ const toolResultSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// toToolResult
+// Re-export toToolResult for backwards compatibility
 // ---------------------------------------------------------------------------
 
-/**
- * Reshape an internal SkillExecutionResult to the thin format returned to models.
- */
-export function toToolResult(r: SkillExecutionResult): SkillToolResult {
-  if (r.success) {
-    return { ok: true, result: r.stdout };
-  }
-  const out: SkillToolResult = { ok: false, error: r.error ?? undefined };
-  if (r.stderr) out.message = r.stderr;
-  return out;
-}
+export { toToolResult } from '@skills-server/client-core';
 
 // ---------------------------------------------------------------------------
 // createSkillsProvider
@@ -123,46 +52,28 @@ export async function createSkillsProvider(
   apiKey: string,
   options: ProviderOptions = {},
 ): Promise<SkillsProvider> {
-  // Build a map of summaries keyed by name
-  const summaryMap = new Map<string, SkillSummary>();
+  const client = new SkillsClient(serverUrl, apiKey);
 
   // Map of fully loaded skill definitions (populated lazily via load_skill)
   const skillsMap = new Map<string, SkillDetail>();
 
-  /** Fetch skills from server, apply filters, rebuild summaryMap and catalog. */
+  /** Fetch skills from server, apply filters, rebuild cache and catalog. */
   async function fetchAndSync(): Promise<void> {
-    const allSkills = await request<SkillSummary[]>(
-      serverUrl,
-      apiKey,
-      '/api/v1/skills',
-    );
-
-    const filtered = allSkills.filter((s) =>
-      matchesFilter(s.name, options.include, options.exclude),
-    );
-
-    summaryMap.clear();
-    for (const s of filtered) {
-      summaryMap.set(s.name, s);
-    }
-
-    const catalogLines = filtered.map((s) => {
-      const desc = s.description ?? '(no description)';
-      const scripts = s.scripts.length > 0 ? s.scripts.join(', ') : 'none';
-      return `- **${s.name}**: ${desc} [scripts: ${scripts}]`;
-    });
-    provider.skillsCatalog =
-      '## Available Skills\n\n' +
-      'Use `load_skill` to read a skill\'s full instructions before using it.\n\n' +
-      catalogLines.join('\n');
+    await client.refresh({ include: options.include, exclude: options.exclude });
   }
 
   const provider: SkillsProvider = {
     get skillNames() {
-      return [...summaryMap.keys()];
+      return client.skills.map((s) => s.name);
     },
     skills: skillsMap,
-    skillsCatalog: '',
+    get skillsCatalog() {
+      return client.skillsCatalog;
+    },
+    set skillsCatalog(_value: string) {
+      // No-op — catalog is managed by the underlying SkillsClient.
+      // Setter exists for interface compatibility.
+    },
 
     async refresh() {
       await fetchAndSync();
@@ -171,29 +82,27 @@ export async function createSkillsProvider(
     handleToolCall: async (
       name: string,
       args: Record<string, unknown>,
-    ): Promise<SkillExecutionResult> => {
+    ): Promise<ExecutionResult> => {
       // ----- load_skill -----
       if (name === 'load_skill') {
         const skillName = String(args.skill ?? '');
 
-        if (!summaryMap.has(skillName)) {
+        const hasSkill = client.skills.some((s) => s.name === skillName);
+        if (!hasSkill) {
           // Best-effort refresh in case permissions changed since last fetch
           try { await fetchAndSync(); } catch { /* continue with existing data */ }
         }
 
-        if (!summaryMap.has(skillName)) {
-          return fail(
+        const hasSkillAfterRefresh = client.skills.some((s) => s.name === skillName);
+        if (!hasSkillAfterRefresh) {
+          return failResult(
             'SkillNotFound',
             `"${skillName}" not found. Available: ${provider.skillNames.join(', ')}`,
           );
         }
 
         try {
-          const detail = await request<SkillDetail>(
-            serverUrl,
-            apiKey,
-            `/api/v1/skills/${encodeURIComponent(skillName)}`,
-          );
+          const detail = await client.loadSkill(skillName);
           skillsMap.set(skillName, detail);
           return {
             success: true,
@@ -206,7 +115,7 @@ export async function createSkillsProvider(
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Failed to load skill';
-          return fail('LoadFailed', message);
+          return failResult('LoadFailed', message);
         }
       }
 
@@ -220,31 +129,22 @@ export async function createSkillsProvider(
         if (Array.isArray(rawArgs)) {
           scriptArgs = rawArgs.map(String);
         } else if (rawArgs !== undefined && rawArgs !== null) {
-          return fail(
+          return failResult(
             'InvalidArgs',
             `args must be an array of strings, got ${typeof rawArgs}`,
           );
         }
 
         try {
-          const result = await request<SkillExecutionResult>(
-            serverUrl,
-            apiKey,
-            `/api/v1/skills/${encodeURIComponent(skillName)}/execute`,
-            {
-              method: 'POST',
-              body: JSON.stringify({ script, args: scriptArgs }),
-            },
-          );
-          return result;
+          return await client.executeSkill(skillName, script, scriptArgs);
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Execution failed';
-          return fail('ExecutionFailed', message);
+          return failResult('ExecutionFailed', message);
         }
       }
 
-      return fail(
+      return failResult(
         'UnknownTool',
         `Unknown tool: ${name}. Available: load_skill, use_skill`,
       );
@@ -268,12 +168,12 @@ export async function createSkillsProvider(
  * uses `nextTurnParams` to inject skill instructions into the model's context.
  */
 export function createSdkTools(provider: SkillsProvider) {
-  const { skills, skillNames } = provider;
+  const { skills } = provider;
 
   const loadSkillInputSchema = z.object({
     skill: z
       .string()
-      .describe(`The skill to load. Available: ${skillNames.join(', ')}`),
+      .describe('The name of the skill to load.'),
   });
 
   const useSkillInputSchema = z.object({
@@ -369,19 +269,6 @@ export function createManualTools(sdkTools: ReturnType<typeof createSdkTools>) {
  * collecting SDK-format items for session history. Respects the `remember` flag on
  * `use_skill` calls -- when `false`, the tool call and its result are emitted to the
  * callback for display but excluded from the returned history.
- *
- * ```ts
- * const provider = await createSkillsProvider(serverUrl, apiKey);
- * const tools = createSdkTools(provider);
- * const result = client.callModel({ input: messages, tools, ... });
- *
- * const { text, history } = await processTurn(result, (event) => {
- *   // stream event to UI (SSE, WebSocket, etc.)
- * });
- *
- * messages.push(...history);
- * messages.push({ role: 'assistant', content: text });
- * ```
  */
 export async function processTurn(
   result: {

@@ -5,3 +5,6 @@ export type {
   ExecutionResult,
   SkillsServerConfig,
 } from "./types.js";
+
+// Re-export SkillsClient so consumers can type the client property
+export { SkillsClient } from "@skills-server/client-core";

@@ -38,7 +38,7 @@ const skillsConfig = await createSkillsServerConfig(
 );
 
 console.log(`Skills server: ${SKILLS_SERVER_URL}`);
-console.log(`Allowed tools: ${skillsConfig.allowedTools.join(', ')}`);
+console.log(`Available skills: ${skillsConfig.client.skills.map(s => s.name).join(', ') || '(none)'}`);
 
 // --- Sessions (in-memory, keyed by Agent SDK session ID) ---
 
@@ -248,15 +248,17 @@ async function handleChat(req, res) {
 
 // --- Config endpoint ---
 
-function handleConfig(req, res) {
+async function handleConfig(req, res) {
+  // Refresh skills on page load so new permissions appear immediately
+  try { await skillsConfig.client.refresh(); } catch { /* best-effort */ }
+
   res.writeHead(200, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
   });
   res.end(
     JSON.stringify({
-      tools: skillsConfig.allowedTools,
-      skillsServerUrl: SKILLS_SERVER_URL,
+      skills: skillsConfig.client.skills.map(s => s.name),
     }),
   );
 }

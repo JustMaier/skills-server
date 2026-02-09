@@ -19,8 +19,8 @@ const DEFAULT_MODEL = process.env.MODEL ?? 'anthropic/claude-sonnet-4';
 
 // Models available in the UI dropdown
 const MODELS = [
-  'x-ai/grok-4.1-fast',
   'stepfun/step-3.5-flash:free',
+  'x-ai/grok-4.1-fast',
   'openai/gpt-5-nano',
   'openai/gpt-oss-120b:free',
   'openai/gpt-oss-20b:free',
@@ -54,8 +54,7 @@ console.log(`Connected to skills server at ${SKILLS_SERVER_URL}`);
 console.log(`Available skills: ${skills.skillNames.join(', ') || '(none)'}`);
 
 // Manual tools (execute: false) — we run tools ourselves between turns for real streaming
-const sdkTools = createSdkTools(skills);
-const manualTools = createManualTools(sdkTools);
+const manualTools = createManualTools(createSdkTools(skills));
 
 const client = new OpenRouter({ apiKey: OPENROUTER_API_KEY });
 

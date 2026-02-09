@@ -1,6 +1,12 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import type { SkillSummary, SkillDetail, ExecutionResult } from "./types.js";
+import {
+  SkillsClient,
+  buildCatalog,
+  type SkillSummary,
+  type SkillDetail,
+  type ExecutionResult,
+} from "@skills-server/client-core";
 
 // ---------------------------------------------------------------------------
 // MCP result helpers
@@ -30,61 +36,12 @@ function errorResult(message: string) {
  * @param apiKey     Bearer token for agent authentication
  */
 export function createSkillsServer(serverUrl: string, apiKey: string) {
-  const baseUrl = serverUrl.replace(/\/+$/, "");
-
-  // ── HTTP helper ──────────────────────────────────────────────────────────
-
-  async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-    const url = `${baseUrl}${path}`;
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`HTTP ${res.status}: ${body}`);
-    }
-
-    return res.json() as Promise<T>;
-  }
-
-  // ── MCP server ───────────────────────────────────────────────────────────
+  const client = new SkillsClient(serverUrl, apiKey);
 
   return createSdkMcpServer({
     name: "skills-server",
     version: "1.0.0",
     tools: [
-      // ── list_skills ────────────────────────────────────────────────────
-      tool(
-        "list_skills",
-        "List all available skills on the server. Returns each skill's name, description, and available scripts.",
-        {},
-        async () => {
-          try {
-            const skills = await apiFetch<SkillSummary[]>("/api/v1/skills");
-
-            if (skills.length === 0) {
-              return textResult("No skills available.");
-            }
-
-            const lines = skills.map((s) => {
-              const desc = s.description ?? "(no description)";
-              const scripts = s.scripts.length > 0 ? s.scripts.join(", ") : "none";
-              return `- **${s.name}**: ${desc}\n  Scripts: ${scripts}`;
-            });
-
-            return textResult(lines.join("\n"));
-          } catch (err) {
-            return errorResult(`Error listing skills: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        },
-      ),
-
       // ── load_skill ─────────────────────────────────────────────────────
       tool(
         "load_skill",
@@ -94,9 +51,7 @@ export function createSkillsServer(serverUrl: string, apiKey: string) {
         },
         async (args) => {
           try {
-            const skill = await apiFetch<SkillDetail>(
-              `/api/v1/skills/${encodeURIComponent(args.name)}`,
-            );
+            const skill = await client.loadSkill(args.name);
 
             const parts: string[] = [];
 
@@ -144,16 +99,7 @@ export function createSkillsServer(serverUrl: string, apiKey: string) {
         },
         async (args) => {
           try {
-            const result = await apiFetch<ExecutionResult>(
-              `/api/v1/skills/${encodeURIComponent(args.name)}/execute`,
-              {
-                method: "POST",
-                body: JSON.stringify({
-                  script: args.script,
-                  args: args.args,
-                }),
-              },
-            );
+            const result = await client.executeSkill(args.name, args.script, args.args);
 
             const parts: string[] = [];
 
@@ -198,6 +144,9 @@ export function createSkillsServer(serverUrl: string, apiKey: string) {
  * The returned `systemPrompt` lists each skill's name, description, and
  * scripts so the agent knows what's available from the first turn.
  *
+ * Also returns the `client` instance so callers can call `client.refresh()`
+ * to update the cached skill list when permissions change.
+ *
  * ```ts
  * import { query } from "@anthropic-ai/claude-agent-sdk";
  * import { createSkillsServerConfig } from "@skills-server/client-agent-sdk";
@@ -210,52 +159,44 @@ export function createSkillsServer(serverUrl: string, apiKey: string) {
  * })) {
  *   // ...
  * }
+ *
+ * // Later, refresh the skill list:
+ * await config.client.refresh();
+ * console.log(config.client.skillsCatalog);
  * ```
  *
  * @param serverUrl  Base URL of the skills server
  * @param apiKey     Bearer token for agent authentication
  */
 export async function createSkillsServerConfig(serverUrl: string, apiKey: string) {
+  const client = new SkillsClient(serverUrl, apiKey);
   const server = createSkillsServer(serverUrl, apiKey);
 
   // Pre-fetch skill catalog for system prompt injection
-  const baseUrl = serverUrl.replace(/\/+$/, "");
-  let catalogPrompt = "";
   try {
-    const res = await fetch(`${baseUrl}/api/v1/skills`, {
-      headers: { "Authorization": `Bearer ${apiKey}` },
-    });
-    if (res.ok) {
-      const skills = (await res.json()) as SkillSummary[];
-      if (skills.length > 0) {
-        const lines = skills.map((s) => {
-          const desc = s.description ?? "(no description)";
-          const scripts = s.scripts.length > 0 ? s.scripts.join(", ") : "none";
-          return `- **${s.name}**: ${desc} [scripts: ${scripts}]`;
-        });
-        catalogPrompt =
-          "\n\n## Available Skills\n\n" +
-          "Use `load_skill` to read a skill's full instructions before using it.\n\n" +
-          lines.join("\n");
-      }
-    }
+    await client.refresh();
   } catch {
-    // Best-effort; agent can still use list_skills tool
+    // Best-effort; agent can still use load_skill / execute_skill tools
   }
 
   return {
+    /** The underlying SkillsClient — call client.refresh() to update the cached catalog. */
+    client,
     mcpServers: { "skills-server": server } as Record<string, typeof server>,
     allowedTools: [
-      "mcp__skills-server__list_skills",
       "mcp__skills-server__load_skill",
       "mcp__skills-server__execute_skill",
     ],
     systemPrompt: {
       type: "preset" as const,
       preset: "claude_code" as const,
-      append: catalogPrompt,
+      get append() {
+        return client.skillsCatalog ? "\n\n" + client.skillsCatalog : "";
+      },
     },
     /** Raw catalog string for manual system prompt composition. */
-    skillsCatalog: catalogPrompt,
+    get skillsCatalog() {
+      return client.skillsCatalog;
+    },
   };
 }

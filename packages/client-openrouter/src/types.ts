@@ -1,45 +1,11 @@
-/**
- * Summary returned by GET /api/v1/skills (list endpoint).
- */
-export interface SkillSummary {
-  name: string;
-  description: string | null;
-  scripts: string[];
-}
-
-/**
- * Full skill detail returned by GET /api/v1/skills/{name}.
- */
-export interface SkillDetail {
-  name: string;
-  description: string;
-  frontmatter: Record<string, string>;
-  content: string;
-  scripts: string[];
-  updatedAt: number;
-}
-
-/**
- * Result from POST /api/v1/skills/{name}/execute.
- */
-export interface SkillExecutionResult {
-  success: boolean;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  error: string | null;
-  durationMs: number;
-}
-
-/**
- * Thin result shape returned to models from SDK tools.
- */
-export interface SkillToolResult {
-  ok: boolean;
-  result?: string;
-  error?: string;
-  message?: string;
-}
+// Re-export core types — maintains backwards compatibility for consumers
+// who import directly from this package.
+export type {
+  SkillSummary,
+  SkillDetail,
+  ExecutionResult as SkillExecutionResult,
+  ToolResult as SkillToolResult,
+} from "@skills-server/client-core";
 
 /**
  * Event emitted by processTurn for UI display.
@@ -80,11 +46,11 @@ export interface ProviderOptions {
  */
 export interface SkillsProvider {
   /** Handle a tool call by name and arguments. */
-  handleToolCall(name: string, args: Record<string, unknown>): Promise<SkillExecutionResult>;
+  handleToolCall(name: string, args: Record<string, unknown>): Promise<import("@skills-server/client-core").ExecutionResult>;
   /** List of available skill names. */
   skillNames: string[];
   /** Map of skill name to full detail (populated on load_skill calls). */
-  skills: Map<string, SkillDetail>;
+  skills: Map<string, import("@skills-server/client-core").SkillDetail>;
   /** Pre-built catalog of skill names, descriptions, and scripts for system prompt injection. */
   skillsCatalog: string;
   /** Re-fetch the skill list from the server and update skillNames, skillsCatalog, and tool descriptions. */

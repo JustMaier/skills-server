@@ -16,3 +16,6 @@ export type {
   TurnEvent,
   TurnOutput,
 } from './types.js';
+
+// Re-export SkillsClient so consumers can access the underlying client
+export { SkillsClient } from '@skills-server/client-core';
