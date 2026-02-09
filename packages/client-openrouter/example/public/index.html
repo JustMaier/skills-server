@@ -244,31 +244,35 @@
 
     const emptyStateHtml = document.getElementById('empty').outerHTML;
 
-    // Load config from server
-    fetch('/api/config')
-      .then((r) => r.json())
-      .then((cfg) => {
-        modelSelect.innerHTML = cfg.models
-          .map(
-            (m) =>
-              `<option value="${m}"${m === cfg.defaultModel ? ' selected' : ''}>${m}</option>`,
-          )
-          .join('');
+    // Fetch config from server (refreshes available skills)
+    function loadConfig() {
+      fetch('/api/config')
+        .then((r) => r.json())
+        .then((cfg) => {
+          modelSelect.innerHTML = cfg.models
+            .map(
+              (m) =>
+                `<option value="${m}"${m === cfg.defaultModel ? ' selected' : ''}>${m}</option>`,
+            )
+            .join('');
 
-        // Update empty state with skill names if available
-        if (cfg.skills && cfg.skills.length > 0) {
-          const emptyEl = document.getElementById('empty');
-          if (emptyEl) {
-            const skillList = cfg.skills.join(', ');
-            emptyEl.querySelector('p').innerHTML =
-              `This agent has access to: <strong>${skillList}</strong><br>Type a message below to get started.`;
+          // Update empty state with skill names if available
+          if (cfg.skills && cfg.skills.length > 0) {
+            const emptyEl = document.getElementById('empty');
+            if (emptyEl) {
+              const skillList = cfg.skills.join(', ');
+              emptyEl.querySelector('p').innerHTML =
+                `This agent has access to: <strong>${skillList}</strong><br>Type a message below to get started.`;
+            }
           }
-        }
-      })
-      .catch(() => {
-        modelSelect.innerHTML =
-          '<option value="anthropic/claude-sonnet-4">anthropic/claude-sonnet-4</option>';
-      });
+        })
+        .catch(() => {
+          modelSelect.innerHTML =
+            '<option value="anthropic/claude-sonnet-4">anthropic/claude-sonnet-4</option>';
+        });
+    }
+
+    loadConfig();
 
     let sessionId = null;
     let busy = false;
@@ -281,6 +285,7 @@
       input.value = '';
       input.style.height = 'auto';
       input.focus();
+      loadConfig();
     });
 
     // Auto-resize textarea

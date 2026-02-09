@@ -19,12 +19,15 @@ const DEFAULT_MODEL = process.env.MODEL ?? 'anthropic/claude-sonnet-4';
 
 // Models available in the UI dropdown
 const MODELS = [
-  'anthropic/claude-sonnet-4',
-  'anthropic/claude-haiku-3.5',
-  'openai/gpt-4o',
-  'openai/gpt-4o-mini',
-  'google/gemini-2.5-flash',
-  'x-ai/grok-3-mini',
+  'x-ai/grok-4.1-fast',
+  'stepfun/step-3.5-flash:free',
+  'openai/gpt-5-nano',
+  'openai/gpt-oss-120b:free',
+  'openai/gpt-oss-20b:free',
+  'arcee-ai/trinity-large-preview:free',
+  'z-ai/glm-4.7-flash',
+  'xiaomi/mimo-v2-flash',
+  'nvidia/nemotron-3-nano-30b-a3b',
 ];
 
 if (!OPENROUTER_API_KEY) {
@@ -163,7 +166,8 @@ async function handleChat(req, res) {
   try {
     let instructions =
       'You are a helpful assistant with access to skills.\n' +
-      'When the user asks you to do something covered by a skill, load it first, then use it.';
+      'When the user asks you to do something covered by a skill, load it first, then use it.\n\n' +
+      skills.skillsCatalog;
 
     // Turn-local items (tool calls/results for this request only)
     const turnItems = [];
@@ -303,6 +307,9 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && req.url === '/api/config') {
+    // Refresh skills on page load / new chat so new permissions appear immediately
+    try { await skills.refresh(); } catch { /* best-effort */ }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(
       JSON.stringify({

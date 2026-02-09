@@ -123,44 +123,50 @@ export async function createSkillsProvider(
   apiKey: string,
   options: ProviderOptions = {},
 ): Promise<SkillsProvider> {
-  // Fetch initial skill list from the server
-  const allSkills = await request<SkillSummary[]>(
-    serverUrl,
-    apiKey,
-    '/api/v1/skills',
-  );
-
-  // Apply include/exclude filters
-  const filteredSummaries = allSkills.filter((s) =>
-    matchesFilter(s.name, options.include, options.exclude),
-  );
-
   // Build a map of summaries keyed by name
   const summaryMap = new Map<string, SkillSummary>();
-  for (const s of filteredSummaries) {
-    summaryMap.set(s.name, s);
-  }
 
   // Map of fully loaded skill definitions (populated lazily via load_skill)
   const skillsMap = new Map<string, SkillDetail>();
 
-  // Build a catalog string for system prompt injection
-  const catalogLines = filteredSummaries.map((s) => {
-    const desc = s.description ?? '(no description)';
-    const scripts = s.scripts.length > 0 ? s.scripts.join(', ') : 'none';
-    return `- **${s.name}**: ${desc} [scripts: ${scripts}]`;
-  });
-  const skillsCatalog =
-    '## Available Skills\n\n' +
-    'Use `load_skill` to read a skill\'s full instructions before using it.\n\n' +
-    catalogLines.join('\n');
+  /** Fetch skills from server, apply filters, rebuild summaryMap and catalog. */
+  async function fetchAndSync(): Promise<void> {
+    const allSkills = await request<SkillSummary[]>(
+      serverUrl,
+      apiKey,
+      '/api/v1/skills',
+    );
+
+    const filtered = allSkills.filter((s) =>
+      matchesFilter(s.name, options.include, options.exclude),
+    );
+
+    summaryMap.clear();
+    for (const s of filtered) {
+      summaryMap.set(s.name, s);
+    }
+
+    const catalogLines = filtered.map((s) => {
+      const desc = s.description ?? '(no description)';
+      const scripts = s.scripts.length > 0 ? s.scripts.join(', ') : 'none';
+      return `- **${s.name}**: ${desc} [scripts: ${scripts}]`;
+    });
+    provider.skillsCatalog =
+      '## Available Skills\n\n' +
+      'Use `load_skill` to read a skill\'s full instructions before using it.\n\n' +
+      catalogLines.join('\n');
+  }
 
   const provider: SkillsProvider = {
     get skillNames() {
       return [...summaryMap.keys()];
     },
     skills: skillsMap,
-    skillsCatalog,
+    skillsCatalog: '',
+
+    async refresh() {
+      await fetchAndSync();
+    },
 
     handleToolCall: async (
       name: string,
@@ -171,24 +177,8 @@ export async function createSkillsProvider(
         const skillName = String(args.skill ?? '');
 
         if (!summaryMap.has(skillName)) {
-          // Re-fetch skill list in case new skills were added since startup
-          try {
-            const refreshed = await request<SkillSummary[]>(
-              serverUrl,
-              apiKey,
-              '/api/v1/skills',
-            );
-            for (const s of refreshed) {
-              if (
-                !summaryMap.has(s.name) &&
-                matchesFilter(s.name, options.include, options.exclude)
-              ) {
-                summaryMap.set(s.name, s);
-              }
-            }
-          } catch {
-            // Best-effort refresh; continue with existing data
-          }
+          // Best-effort refresh in case permissions changed since last fetch
+          try { await fetchAndSync(); } catch { /* continue with existing data */ }
         }
 
         if (!summaryMap.has(skillName)) {
@@ -260,6 +250,9 @@ export async function createSkillsProvider(
       );
     },
   };
+
+  // Initial fetch
+  await fetchAndSync();
 
   return provider;
 }

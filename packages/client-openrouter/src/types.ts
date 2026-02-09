@@ -87,4 +87,6 @@ export interface SkillsProvider {
   skills: Map<string, SkillDetail>;
   /** Pre-built catalog of skill names, descriptions, and scripts for system prompt injection. */
   skillsCatalog: string;
+  /** Re-fetch the skill list from the server and update skillNames, skillsCatalog, and tool descriptions. */
+  refresh(): Promise<void>;
 }
