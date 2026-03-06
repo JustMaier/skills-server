@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { eq, and, inArray } from 'drizzle-orm';
-import { db, agents, skills, envVars, agentSkills, agentEnvVars } from '../db/index.js';
+import { db, agents, skills, envVars, agentSkills, agentEnvVars, PERMISSION_LEVELS } from '../db/index.js';
 import { adminAuth } from '../services/auth.js';
+import { isValidPermissionLevel } from '../services/permissions.js';
 
 // ---------------------------------------------------------------------------
 // Shared Zod schemas
@@ -25,8 +26,15 @@ const SkillNameParam = z.object({
   name: z.string().openapi({ param: { name: 'name', in: 'path' }, description: 'Skill name' }),
 });
 
+const PermissionLevelEnum = z.enum(PERMISSION_LEVELS);
+
+const SkillGrantEntry = z.object({
+  skillId: z.string(),
+  level: PermissionLevelEnum.default('execute').optional(),
+});
+
 const SkillIdsBody = z.object({
-  skillIds: z.array(z.string()),
+  skillIds: z.array(z.union([z.string(), SkillGrantEntry])),
 }).openapi('SetSkillsBody');
 
 const EnvVarIdsBody = z.object({
@@ -42,6 +50,7 @@ const PermissionsResponse = z.object({
     id: z.string(),
     name: z.string(),
     description: z.string().nullable(),
+    permissionLevel: z.string(),
   })),
   envVars: z.array(z.object({
     id: z.string(),
@@ -112,6 +121,10 @@ const getPermissionsRoute = createRoute({
   },
 });
 
+const GrantSkillBody = z.object({
+  level: PermissionLevelEnum.default('execute').optional(),
+}).optional();
+
 const grantSkillRoute = createRoute({
   method: 'post',
   path: '/{id}/skills/{skillId}',
@@ -120,6 +133,7 @@ const grantSkillRoute = createRoute({
   middleware: [adminAuth] as const,
   request: {
     params: AgentIdSkillIdParam,
+    body: { content: { 'application/json': { schema: GrantSkillBody } }, required: false },
   },
   responses: {
     204: { description: 'Skill granted' },
@@ -199,10 +213,17 @@ app.openapi(setSkillsRoute, async (c) => {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
+  // Normalize entries: accept either plain string IDs or {skillId, level} objects
+  const entries = skillIds.map((entry) => {
+    if (typeof entry === 'string') return { skillId: entry, level: 'execute' as const };
+    return { skillId: entry.skillId, level: entry.level ?? 'execute' as const };
+  });
+
   // Validate all skill IDs exist before modifying
-  if (skillIds.length > 0) {
-    const existing = await db.select({ id: skills.id }).from(skills).where(inArray(skills.id, skillIds));
-    if (existing.length !== skillIds.length) {
+  const entryIds = entries.map((e) => e.skillId);
+  if (entryIds.length > 0) {
+    const existing = await db.select({ id: skills.id }).from(skills).where(inArray(skills.id, entryIds));
+    if (existing.length !== entryIds.length) {
       return c.json({ error: 'One or more skill IDs not found' }, 400);
     }
   }
@@ -210,14 +231,14 @@ app.openapi(setSkillsRoute, async (c) => {
   // Atomic replace: delete + insert in a transaction
   db.transaction((tx) => {
     tx.delete(agentSkills).where(eq(agentSkills.agentId, id)).run();
-    if (skillIds.length > 0) {
+    if (entries.length > 0) {
       tx.insert(agentSkills).values(
-        skillIds.map((skillId) => ({ agentId: id, skillId })),
+        entries.map((e) => ({ agentId: id, skillId: e.skillId, permissionLevel: e.level })),
       ).run();
     }
   });
 
-  return c.json({ granted: skillIds.length }, 200);
+  return c.json({ granted: entries.length }, 200);
 });
 
 // 2. PUT /:id/env-vars — Set agent's granted env vars (full replace)
@@ -265,6 +286,7 @@ app.openapi(getPermissionsRoute, async (c) => {
       id: skills.id,
       name: skills.name,
       description: skills.description,
+      permissionLevel: agentSkills.permissionLevel,
     })
     .from(agentSkills)
     .innerJoin(skills, eq(agentSkills.skillId, skills.id))
@@ -286,11 +308,16 @@ app.openapi(getPermissionsRoute, async (c) => {
 // 4. POST /:id/skills/:skillId — Grant a single skill
 app.openapi(grantSkillRoute, async (c) => {
   const { id, skillId } = c.req.valid('param');
+  const body = c.req.valid('json');
+  const level = body?.level ?? 'execute';
 
   await db
     .insert(agentSkills)
-    .values({ agentId: id, skillId })
-    .onConflictDoNothing();
+    .values({ agentId: id, skillId, permissionLevel: level })
+    .onConflictDoUpdate({
+      target: [agentSkills.agentId, agentSkills.skillId],
+      set: { permissionLevel: level },
+    });
 
   return c.body(null, 204);
 });

@@ -1,11 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { eq, and } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
-import { db, agentSkills, skills, agentEnvVars, skillEnvVars, envVars, executionLogs } from '../db/index.js';
+import { db, agentSkills, skills, agentEnvVars, skillEnvVars, envVars, executionLogs, type PermissionLevel } from '../db/index.js';
 import { agentAuth, type AuthEnv } from '../services/auth.js';
 import { createSkillsManager } from '../services/discovery.js';
 import { executeScript, type ExecutionResult } from '../services/executor.js';
 import { decrypt } from '../services/crypto.js';
+import { requirePermission, hasPermission } from '../services/permissions.js';
 
 // ---------------------------------------------------------------------------
 // Shared schemas
@@ -42,6 +43,17 @@ const ExecutionResultSchema = z.object({
   exitCode: z.number(),
   error: z.string().nullable(),
   durationMs: z.number(),
+});
+
+const MissingEnvVarSchema = z.object({
+  key: z.string(),
+  reason: z.enum(['missing', 'not_linked']),
+  hint: z.string(),
+});
+
+const MissingEnvVarsResponse = z.object({
+  error: z.string(),
+  missingEnvVars: z.array(MissingEnvVarSchema),
 });
 
 // ---------------------------------------------------------------------------
@@ -151,6 +163,14 @@ const executeSkillRoute = createRoute({
         },
       },
     },
+    422: {
+      description: 'Missing required environment variables',
+      content: {
+        'application/json': {
+          schema: MissingEnvVarsResponse,
+        },
+      },
+    },
   },
 });
 
@@ -167,8 +187,22 @@ export function createAgentFacingRoutes(
 
   app.openapi(listSkillsRoute, async (c) => {
     const agent = c.get('agent');
+    const agentLevel = agent.permissionLevel as PermissionLevel;
 
-    // Find which skill IDs this agent is granted
+    // Agents with execute+ agent-wide permission can see ALL skills
+    if (hasPermission(agentLevel, 'execute')) {
+      const allSkills = await db.select().from(skills);
+      return c.json(
+        allSkills.map((s) => ({
+          name: s.name,
+          description: s.description,
+          scripts: JSON.parse(s.scripts) as string[],
+        })),
+        200,
+      );
+    }
+
+    // Otherwise, only show per-skill grants
     const grants = await db
       .select({ skillId: agentSkills.skillId })
       .from(agentSkills)
@@ -178,9 +212,7 @@ export function createAgentFacingRoutes(
       return c.json([], 200);
     }
 
-    // Fetch the corresponding skill rows
     const results: z.infer<typeof SkillSummarySchema>[] = [];
-
     for (const { skillId } of grants) {
       const [skill] = await db
         .select()
@@ -206,26 +238,13 @@ export function createAgentFacingRoutes(
   type SkillAccessOk = { skillRow: typeof skills.$inferSelect; skill: import('../services/discovery.js').SkillDefinition };
 
   async function requireSkillAccess(agentId: string, skillName: string): Promise<SkillAccessError | SkillAccessOk> {
-    const [skillRow] = await db
-      .select()
-      .from(skills)
-      .where(eq(skills.name, skillName))
-      .limit(1);
-
-    if (!skillRow) return { error: 'Skill not found', status: 404 };
-
-    const [grant] = await db
-      .select()
-      .from(agentSkills)
-      .where(and(eq(agentSkills.agentId, agentId), eq(agentSkills.skillId, skillRow.id)))
-      .limit(1);
-
-    if (!grant) return { error: 'Not authorized to access this skill', status: 403 };
+    const result = await requirePermission(agentId, skillName, 'execute');
+    if ('error' in result) return result;
 
     const skill = await skillsManager.getSkill(skillName);
     if (!skill) return { error: 'Skill not found', status: 404 };
 
-    return { skillRow, skill };
+    return { skillRow: result.skillRow, skill };
   }
 
   // ─── GET /:name — Get skill content ────────────────────────────────────────
@@ -267,12 +286,62 @@ export function createAgentFacingRoutes(
       return c.json({ error: 'Script not allowed for this skill' }, 403);
     }
 
+    // ── Missing env var detection ───────────────────────────────────────────
+    // Check which env vars the skill requires vs what the agent satisfies.
+    const requiredEnvVars = await db
+      .select({ envVarId: skillEnvVars.envVarId, key: envVars.key })
+      .from(skillEnvVars)
+      .innerJoin(envVars, eq(skillEnvVars.envVarId, envVars.id))
+      .where(eq(skillEnvVars.skillId, access.skillRow.id));
+
+    const agentGrantedEnvVarIds = new Set(
+      (await db
+        .select({ envVarId: agentEnvVars.envVarId })
+        .from(agentEnvVars)
+        .where(eq(agentEnvVars.agentId, agent.id))
+      ).map((r) => r.envVarId),
+    );
+
+    const missing: z.infer<typeof MissingEnvVarSchema>[] = [];
+    for (const req of requiredEnvVars) {
+      if (!agentGrantedEnvVarIds.has(req.envVarId)) {
+        // Check if agent owns an env var with this key but hasn't linked it
+        const [ownedVar] = await db
+          .select({ id: envVars.id })
+          .from(envVars)
+          .where(and(eq(envVars.key, req.key), eq(envVars.ownerId, agent.id)))
+          .limit(1);
+
+        if (ownedVar) {
+          missing.push({
+            key: req.key,
+            reason: 'not_linked',
+            hint: `You have env var "${req.key}" but it is not linked to this skill. Use the self-service API to link it.`,
+          });
+        } else {
+          missing.push({
+            key: req.key,
+            reason: 'missing',
+            hint: `Required env var "${req.key}" is not available. Create it via the self-service API or ask an admin.`,
+          });
+        }
+      }
+    }
+
+    if (missing.length > 0) {
+      return c.json({
+        error: 'Missing required environment variables',
+        missingEnvVars: missing,
+      }, 422);
+    }
+
     // Gather env vars: intersection of agent grants AND skill requirements.
-    // Strict: if the skill has no skill_env_vars entries, no env vars are injected.
+    // Agent-owned env vars overlay admin-owned ones (agent takes priority).
     const grantedEnvVars = await db
       .select({
         key: envVars.key,
         encryptedValue: envVars.encryptedValue,
+        ownerId: envVars.ownerId,
       })
       .from(agentEnvVars)
       .innerJoin(envVars, eq(agentEnvVars.envVarId, envVars.id))
@@ -282,9 +351,11 @@ export function createAgentFacingRoutes(
       ))
       .where(eq(agentEnvVars.agentId, agent.id));
 
-    // Decrypt each env var into a plain key-value map
+    // Decrypt each env var — admin vars first, then agent-owned overlay
     const env: Record<string, string> = {};
-    for (const row of grantedEnvVars) {
+    const adminVars = grantedEnvVars.filter((r) => !r.ownerId);
+    const agentVars = grantedEnvVars.filter((r) => r.ownerId);
+    for (const row of [...adminVars, ...agentVars]) {
       try {
         env[row.key] = decrypt(row.encryptedValue);
       } catch {

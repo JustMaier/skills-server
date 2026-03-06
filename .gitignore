@@ -6,3 +6,5 @@ dist/
 .env
 .browser/
 test-agents.json
+packages/server/skills/
+packages/server/repos/

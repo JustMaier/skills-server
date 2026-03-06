@@ -21,11 +21,12 @@ sqlite.pragma("foreign_keys = ON");
 
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS agents (
-    id            TEXT PRIMARY KEY,
-    name          TEXT NOT NULL,
-    api_key_hash  TEXT NOT NULL UNIQUE,
-    created_at    INTEGER NOT NULL,
-    updated_at    INTEGER NOT NULL
+    id               TEXT PRIMARY KEY,
+    name             TEXT NOT NULL,
+    api_key_hash     TEXT NOT NULL UNIQUE,
+    permission_level TEXT NOT NULL DEFAULT 'none',
+    created_at       INTEGER NOT NULL,
+    updated_at       INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS skills (
@@ -40,16 +41,18 @@ sqlite.exec(`
 
   CREATE TABLE IF NOT EXISTS env_vars (
     id              TEXT PRIMARY KEY,
-    key             TEXT NOT NULL UNIQUE,
+    key             TEXT NOT NULL,
     encrypted_value TEXT NOT NULL,
     description     TEXT,
+    owner_id        TEXT REFERENCES agents(id) ON DELETE CASCADE,
     created_at      INTEGER NOT NULL,
     updated_at      INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS agent_skills (
-    agent_id  TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    skill_id  TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    agent_id         TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    skill_id         TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    permission_level TEXT NOT NULL DEFAULT 'execute',
     PRIMARY KEY (agent_id, skill_id)
   );
 
@@ -76,7 +79,42 @@ sqlite.exec(`
     duration_ms INTEGER,
     created_at  INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS skill_registry (
+    id             TEXT PRIMARY KEY,
+    skill_id       TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    repo_url       TEXT NOT NULL,
+    branch         TEXT NOT NULL DEFAULT 'main',
+    subpath        TEXT NOT NULL DEFAULT '/',
+    registered_by  TEXT REFERENCES agents(id) ON DELETE SET NULL,
+    last_synced    INTEGER,
+    status         TEXT NOT NULL DEFAULT 'active',
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL
+  );
 `);
+
+// ─── Idempotent migrations for existing databases ──────────────────────────
+
+function migrateColumn(table: string, column: string, definition: string) {
+  try {
+    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch {
+    // Column already exists — ignore
+  }
+}
+
+migrateColumn("agents", "permission_level", "TEXT NOT NULL DEFAULT 'none'");
+migrateColumn("agent_skills", "permission_level", "TEXT NOT NULL DEFAULT 'execute'");
+migrateColumn("env_vars", "owner_id", "TEXT REFERENCES agents(id) ON DELETE CASCADE");
+
+// Replace UNIQUE(key) with UNIQUE(key, owner_id) on env_vars
+try {
+  sqlite.exec(`DROP INDEX IF EXISTS env_vars_key_unique`);
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS env_vars_key_owner ON env_vars(key, COALESCE(owner_id, ''))`);
+} catch {
+  // Index already exists or old index not found — ignore
+}
 
 // ─── Drizzle ORM instance ───────────────────────────────────────────────────
 

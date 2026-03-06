@@ -1,9 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { eq } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
-import { db, agents } from '../db/index.js';
+import { db, agents, PERMISSION_LEVELS } from '../db/index.js';
 import { adminAuth } from '../services/auth.js';
 import { hashApiKey, generateApiKey } from '../services/crypto.js';
+import { isValidPermissionLevel } from '../services/permissions.js';
 
 // ---------------------------------------------------------------------------
 // Shared Zod schemas
@@ -13,17 +14,22 @@ const AgentIdParam = z.object({
   id: z.string().openapi({ description: 'Agent ID', example: 'a1b2c3d4-...' }),
 });
 
+const PermissionLevelEnum = z.enum(PERMISSION_LEVELS).openapi({ description: 'Permission level' });
+
 const CreateAgentBody = z.object({
   name: z.string().min(1).openapi({ description: 'Agent display name', example: 'my-agent' }),
+  permissionLevel: PermissionLevelEnum.default('none').optional(),
 });
 
 const UpdateAgentBody = z.object({
   name: z.string().min(1).optional().openapi({ description: 'New agent name' }),
+  permissionLevel: PermissionLevelEnum.optional(),
 });
 
 const AgentResponse = z.object({
   id: z.string(),
   name: z.string(),
+  permissionLevel: z.string(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -177,16 +183,18 @@ const app = new OpenAPIHono();
 
 // POST / — Create agent
 app.openapi(createAgentRoute, async (c) => {
-  const { name } = c.req.valid('json');
+  const { name, permissionLevel } = c.req.valid('json');
   const id = uuid();
   const apiKey = generateApiKey();
   const apiKeyHash = hashApiKey(apiKey);
   const now = Date.now();
+  const level = permissionLevel ?? 'none';
 
   await db.insert(agents).values({
     id,
     name,
     apiKeyHash,
+    permissionLevel: level,
     createdAt: now,
     updatedAt: now,
   });
@@ -200,6 +208,7 @@ app.openapi(listAgentsRoute, async (c) => {
     .select({
       id: agents.id,
       name: agents.name,
+      permissionLevel: agents.permissionLevel,
       createdAt: agents.createdAt,
       updatedAt: agents.updatedAt,
     })
@@ -216,6 +225,7 @@ app.openapi(getAgentRoute, async (c) => {
     .select({
       id: agents.id,
       name: agents.name,
+      permissionLevel: agents.permissionLevel,
       createdAt: agents.createdAt,
       updatedAt: agents.updatedAt,
     })
@@ -256,6 +266,7 @@ app.openapi(updateAgentRoute, async (c) => {
     .select({
       id: agents.id,
       name: agents.name,
+      permissionLevel: agents.permissionLevel,
       createdAt: agents.createdAt,
       updatedAt: agents.updatedAt,
     })

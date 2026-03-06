@@ -308,6 +308,11 @@
       color: var(--accent);
     }
 
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+    }
+
     /* Key display */
     .key-display {
       background: #111;
@@ -664,6 +669,7 @@
       <!-- Tabs -->
       <div class="tabs">
         <button class="tab-btn" :class="{ active: tab === 'skills' }" @click="switchTab('skills')">Skills</button>
+        <button class="tab-btn" :class="{ active: tab === 'registry' }" @click="switchTab('registry')">Registry</button>
         <button class="tab-btn" :class="{ active: tab === 'agents' }" @click="switchTab('agents')">Agents</button>
         <button class="tab-btn" :class="{ active: tab === 'envvars' }" @click="switchTab('envvars')">Env Vars</button>
         <button class="tab-btn" :class="{ active: tab === 'permissions' }" @click="switchTab('permissions')">Permissions</button>
@@ -780,6 +786,91 @@
         </div>
       </div>
 
+      <!-- ==================== REGISTRY TAB ==================== -->
+      <div x-show="tab === 'registry'">
+        <!-- Register skill form -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom: 12px;">Register Skill</div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <label>Repo URL</label>
+              <input type="text" placeholder="https://github.com/org/repo" x-model="newRegistryRepoUrl">
+            </div>
+            <div class="form-group">
+              <label>Branch</label>
+              <input type="text" placeholder="main" x-model="newRegistryBranch" style="width:120px;">
+            </div>
+            <div class="form-group">
+              <label>Subpath</label>
+              <input type="text" placeholder="/" x-model="newRegistrySubpath" style="width:120px;">
+            </div>
+            <div class="form-group">
+              <label>Name (optional)</label>
+              <input type="text" placeholder="Auto-detect" x-model="newRegistryName" style="width:160px;">
+            </div>
+            <button class="btn btn-primary" @click="registerSkill()" :disabled="!newRegistryRepoUrl.trim() || registryCreating">
+              <span x-show="!registryCreating">Register</span>
+              <span x-show="registryCreating">Registering...</span>
+            </button>
+          </div>
+          <template x-if="registryCreateError">
+            <div class="alert alert-error" style="margin-top:12px;" x-text="registryCreateError"></div>
+          </template>
+        </div>
+
+        <!-- Registry list -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Registered Skills</div>
+            <button class="btn btn-sm" @click="fetchRegistry()">Refresh</button>
+          </div>
+
+          <div x-show="registryLoading && registryList.length === 0" class="loading">Loading registry...</div>
+          <div x-show="!registryLoading && registryList.length === 0" class="empty">No skills registered yet.</div>
+
+          <div class="table-wrap" x-show="registryList.length > 0">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Repo URL</th>
+                  <th>Branch</th>
+                  <th>Status</th>
+                  <th>Last Synced</th>
+                  <th style="width: 180px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="entry in registryList" :key="entry.id">
+                  <tr>
+                    <td class="mono" style="font-weight:600;" x-text="entry.name || '(unnamed)'"></td>
+                    <td class="mono" style="font-size:12px;word-break:break-all;" x-text="entry.repoUrl"></td>
+                    <td class="mono" x-text="entry.branch || 'main'"></td>
+                    <td>
+                      <span class="badge" :class="{
+                        'badge-success': entry.status === 'active',
+                        'badge-warning': entry.status === 'syncing',
+                        'badge-error': entry.status === 'broken'
+                      }" x-text="entry.status"></span>
+                    </td>
+                    <td class="text-dim" x-text="entry.lastSyncedAt ? formatDateTime(entry.lastSyncedAt) : 'Never'"></td>
+                    <td>
+                      <div class="action-btns">
+                        <button class="btn btn-sm" @click="syncRegistryEntry(entry.id)" :disabled="syncingRegistryId === entry.id">
+                          <span x-show="syncingRegistryId !== entry.id">Sync</span>
+                          <span x-show="syncingRegistryId === entry.id">...</span>
+                        </button>
+                        <button class="btn btn-sm btn-danger" @click="unregisterSkill(entry)">Unregister</button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ==================== AGENTS TAB ==================== -->
       <div x-show="tab === 'agents'">
         <!-- Create agent form -->
@@ -789,6 +880,15 @@
             <div class="form-group" style="flex:1;">
               <label>Name</label>
               <input type="text" placeholder="e.g. my-agent" x-model="newAgentName" @keydown.enter="createAgent()">
+            </div>
+            <div class="form-group">
+              <label>Permission Level</label>
+              <select x-model="newAgentPermLevel" style="min-width:120px;">
+                <option value="none">none</option>
+                <option value="execute">execute</option>
+                <option value="maintain">maintain</option>
+                <option value="admin">admin</option>
+              </select>
             </div>
             <button class="btn btn-primary" @click="createAgent()" :disabled="!newAgentName.trim() || agentCreating">
               <span x-show="!agentCreating">Create Agent</span>
@@ -833,6 +933,7 @@
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Permission</th>
                   <th>Created</th>
                   <th style="width: 220px;">Actions</th>
                 </tr>
@@ -851,6 +952,24 @@
                       </template>
                       <template x-if="editingAgentId !== agent.id">
                         <span class="mono" style="font-weight:600;" x-text="agent.name"></span>
+                      </template>
+                    </td>
+                    <td>
+                      <template x-if="editingAgentId === agent.id">
+                        <select x-model="editingAgentPermLevel" style="min-width:100px;">
+                          <option value="none">none</option>
+                          <option value="execute">execute</option>
+                          <option value="maintain">maintain</option>
+                          <option value="admin">admin</option>
+                        </select>
+                      </template>
+                      <template x-if="editingAgentId !== agent.id">
+                        <span class="badge" :class="{
+                          'badge-info': agent.permissionLevel === 'execute',
+                          'badge-warning': agent.permissionLevel === 'maintain',
+                          'badge-success': agent.permissionLevel === 'admin',
+                          'badge-error': agent.permissionLevel === 'none' || !agent.permissionLevel
+                        }" x-text="agent.permissionLevel || 'none'"></span>
                       </template>
                     </td>
                     <td class="text-dim" x-text="formatDate(agent.createdAt)"></td>
@@ -915,6 +1034,7 @@
               <thead>
                 <tr>
                   <th>Key</th>
+                  <th>Owner</th>
                   <th>Description</th>
                   <th style="width:300px;">Actions</th>
                 </tr>
@@ -923,6 +1043,7 @@
                 <template x-for="ev in envVarsList" :key="ev.id">
                   <tr>
                     <td class="mono" style="font-weight:600;" x-text="ev.key"></td>
+                    <td x-text="ev.ownerId ? (agentsList.find(a => a.id === ev.ownerId)?.name || ev.ownerId) : 'admin'" :class="{ 'text-dim': !ev.ownerId }"></td>
                     <td>
                       <template x-if="editingEnvId === ev.id">
                         <input type="text" x-model="editingEnvDesc" placeholder="Description" style="width:100%;">
@@ -991,17 +1112,27 @@
             </div>
             <div class="perm-grid" x-show="allSkillsForPerms.length > 0">
               <template x-for="skill in allSkillsForPerms" :key="skill.name">
-                <div class="perm-item">
+                <div class="perm-item" style="flex-wrap:wrap;">
                   <input
                     type="checkbox"
                     :id="'sk-' + skill.name"
                     :checked="isSkillGranted(skill.name)"
                     @change="toggleSkillPerm(skill, $event.target.checked)"
                   >
-                  <label :for="'sk-' + skill.name">
+                  <label :for="'sk-' + skill.name" style="flex:1;">
                     <span x-text="skill.name"></span>
                     <span class="perm-desc" x-text="skill.description || ''" x-show="skill.description"></span>
                   </label>
+                  <select
+                    x-show="isSkillGranted(skill.name)"
+                    :value="getSkillPermLevel(skill.name)"
+                    @change="updateSkillPermLevel(skill, $event.target.value)"
+                    style="padding:2px 6px;font-size:11px;min-width:80px;"
+                  >
+                    <option value="execute">execute</option>
+                    <option value="maintain">maintain</option>
+                    <option value="admin">admin</option>
+                  </select>
                 </div>
               </template>
             </div>
@@ -1219,10 +1350,12 @@
         agentsList: [],
         agentsLoading: false,
         newAgentName: '',
+        newAgentPermLevel: 'none',
         newAgentKey: null,
         agentCreating: false,
         editingAgentId: null,
         editingAgentName: '',
+        editingAgentPermLevel: 'none',
         rotatingKeyId: null,
         rotatedKey: null,
 
@@ -1242,11 +1375,23 @@
         permAgentId: '',
         permLoading: false,
         grantedSkillNames: [],
+        grantedSkills: [],
         grantedEnvVarIds: [],
         allSkillsForPerms: [],
         allEnvVarsForPerms: [],
         // Map of skill name -> DB UUID, built from agent permissions responses
         skillIdMap: {},
+
+        // Registry
+        registryList: [],
+        registryLoading: false,
+        registryCreating: false,
+        registryCreateError: null,
+        newRegistryRepoUrl: '',
+        newRegistryBranch: 'main',
+        newRegistrySubpath: '/',
+        newRegistryName: '',
+        syncingRegistryId: null,
 
         // Logs
         logsList: [],
@@ -1269,8 +1414,9 @@
         async switchTab(t) {
           this.tab = t;
           if (t === 'skills') await this.fetchSkills();
+          if (t === 'registry') await this.fetchRegistry();
           if (t === 'agents') await this.fetchAgents();
-          if (t === 'envvars') await this.fetchEnvVars();
+          if (t === 'envvars') { await this.fetchAgents(); await this.fetchEnvVars(); }
           if (t === 'permissions') {
             await this.fetchAgents();
             await this.fetchAllSkillsForPerms();
@@ -1419,12 +1565,13 @@
           try {
             const res = await apiFetch('/api/v1/agents', {
               method: 'POST',
-              body: { name: this.newAgentName.trim() },
+              body: { name: this.newAgentName.trim(), permissionLevel: this.newAgentPermLevel },
             });
             const data = await res.json();
             if (res.ok) {
               this.newAgentKey = data.apiKey;
               this.newAgentName = '';
+              this.newAgentPermLevel = 'none';
               await this.fetchAgents();
               this.notify('success', 'Agent created');
             } else {
@@ -1440,6 +1587,7 @@
         startEditAgent(agent) {
           this.editingAgentId = agent.id;
           this.editingAgentName = agent.name;
+          this.editingAgentPermLevel = agent.permissionLevel || 'none';
         },
 
         async saveAgentName(id) {
@@ -1447,12 +1595,12 @@
           try {
             const res = await apiFetch('/api/v1/agents/' + id, {
               method: 'PATCH',
-              body: { name: this.editingAgentName.trim() },
+              body: { name: this.editingAgentName.trim(), permissionLevel: this.editingAgentPermLevel },
             });
             if (res.ok) {
               this.editingAgentId = null;
               await this.fetchAgents();
-              this.notify('success', 'Agent renamed');
+              this.notify('success', 'Agent updated');
             } else {
               const data = await res.json();
               this.notify('error', data.error || 'Failed to update agent');
@@ -1618,7 +1766,8 @@
           try {
             const res = await apiFetch('/api/v1/agents/' + this.permAgentId + '/permissions');
             const data = await res.json();
-            this.grantedSkillNames = (data.skills || []).map(s => s.name);
+            this.grantedSkills = data.skills || [];
+            this.grantedSkillNames = this.grantedSkills.map(s => s.name);
             this.grantedEnvVarIds = (data.envVars || []).map(e => e.id);
             // Populate skill name -> id map from this response
             for (const s of (data.skills || [])) {
@@ -1656,16 +1805,44 @@
 
           try {
             if (checked) {
-              await apiFetch('/api/v1/agents/' + this.permAgentId + '/skills/' + skillId, { method: 'POST' });
+              await apiFetch('/api/v1/agents/' + this.permAgentId + '/skills/' + skillId, {
+                method: 'POST',
+                body: { level: 'execute' },
+              });
               if (!this.grantedSkillNames.includes(skill.name)) {
                 this.grantedSkillNames.push(skill.name);
+                this.grantedSkills.push({ name: skill.name, id: skillId, permissionLevel: 'execute' });
               }
             } else {
               await apiFetch('/api/v1/agents/' + this.permAgentId + '/skills/' + skillId, { method: 'DELETE' });
               this.grantedSkillNames = this.grantedSkillNames.filter(n => n !== skill.name);
+              this.grantedSkills = this.grantedSkills.filter(s => s.name !== skill.name);
             }
           } catch (e) {
             this.notify('error', 'Failed to update skill permission');
+            await this.fetchPermissions();
+          }
+        },
+
+        getSkillPermLevel(name) {
+          const s = this.grantedSkills.find(s => s.name === name);
+          return s?.permissionLevel || 'execute';
+        },
+
+        async updateSkillPermLevel(skill, level) {
+          if (!this.permAgentId) return;
+          const skillId = this.skillIdMap[skill.name];
+          if (!skillId) return;
+          try {
+            await apiFetch('/api/v1/agents/' + this.permAgentId + '/skills/' + skillId, {
+              method: 'POST',
+              body: { level },
+            });
+            const gs = this.grantedSkills.find(s => s.name === skill.name);
+            if (gs) gs.permissionLevel = level;
+            this.notify('success', 'Permission level updated');
+          } catch (e) {
+            this.notify('error', 'Failed to update permission level');
             await this.fetchPermissions();
           }
         },
@@ -1702,6 +1879,90 @@
           } catch (e) {
             this.notify('error', 'Failed to update env var permission');
             await this.fetchPermissions();
+          }
+        },
+
+        // ================================================================
+        // REGISTRY
+        // ================================================================
+
+        async fetchRegistry() {
+          this.registryLoading = true;
+          try {
+            const res = await apiFetch('/api/v1/registry');
+            this.registryList = await res.json();
+          } catch (e) {
+            this.notify('error', 'Failed to fetch registry');
+          } finally {
+            this.registryLoading = false;
+          }
+        },
+
+        async registerSkill() {
+          if (!this.newRegistryRepoUrl.trim()) return;
+          this.registryCreating = true;
+          this.registryCreateError = null;
+          try {
+            const body = {
+              repoUrl: this.newRegistryRepoUrl.trim(),
+              branch: this.newRegistryBranch.trim() || 'main',
+              subpath: this.newRegistrySubpath.trim() || '/',
+            };
+            if (this.newRegistryName.trim()) {
+              body.name = this.newRegistryName.trim();
+            }
+            const res = await apiFetch('/api/v1/registry', {
+              method: 'POST',
+              body,
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.newRegistryRepoUrl = '';
+              this.newRegistryBranch = 'main';
+              this.newRegistrySubpath = '/';
+              this.newRegistryName = '';
+              await this.fetchRegistry();
+              this.notify('success', 'Skill registered');
+            } else {
+              this.registryCreateError = data.error || 'Failed to register skill';
+            }
+          } catch (e) {
+            this.registryCreateError = 'Failed to register skill';
+          } finally {
+            this.registryCreating = false;
+          }
+        },
+
+        async syncRegistryEntry(id) {
+          this.syncingRegistryId = id;
+          try {
+            const res = await apiFetch('/api/v1/registry/' + id + '/sync', { method: 'POST' });
+            if (res.ok) {
+              await this.fetchRegistry();
+              this.notify('success', 'Sync initiated');
+            } else {
+              const data = await res.json();
+              this.notify('error', data.error || 'Failed to sync');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to sync');
+          } finally {
+            this.syncingRegistryId = null;
+          }
+        },
+
+        async unregisterSkill(entry) {
+          if (!confirm('Unregister skill "' + (entry.name || entry.repoUrl) + '"? This cannot be undone.')) return;
+          try {
+            const res = await apiFetch('/api/v1/registry/' + entry.id, { method: 'DELETE' });
+            if (res.ok || res.status === 204) {
+              await this.fetchRegistry();
+              this.notify('success', 'Skill unregistered');
+            } else {
+              this.notify('error', 'Failed to unregister skill');
+            }
+          } catch (e) {
+            this.notify('error', 'Failed to unregister skill');
           }
         },
 

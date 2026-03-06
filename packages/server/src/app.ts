@@ -9,13 +9,15 @@ import envVarsRoutes from './routes/env-vars.js';
 import permissionsRoutes from './routes/permissions.js';
 import { createSkillsAdminRoutes } from './routes/skills-admin.js';
 import executionLogsRoutes from './routes/execution-logs.js';
+import selfServiceRoutes from './routes/self-service.js';
+import { createRegistryRoutes } from './routes/registry.js';
 import { createSkillsManager } from './services/discovery.js';
 
 // ---------------------------------------------------------------------------
 // Create app
 // ---------------------------------------------------------------------------
 
-export function createApp(skillsDir: string) {
+export function createApp(skillsDir: string, reposDir: string) {
   const app = new OpenAPIHono();
   const skillsManager = createSkillsManager(skillsDir);
 
@@ -50,6 +52,12 @@ export function createApp(skillsDir: string) {
   app.route('/api/v1/agents', agentsRoutes);
   app.route('/api/v1/env-vars', envVarsRoutes);
   app.route('/api/v1/agents', permissionsRoutes);
+
+  // Self-service routes (requires agent API key)
+  app.route('/api/v1/self', selfServiceRoutes);
+
+  // Registry routes (requires agent API key, maintain+ for writes)
+  app.route('/api/v1/registry', createRegistryRoutes(skillsManager, skillsDir, reposDir));
 
   // Admin routes (requires admin API key)
   app.route('/api/v1/admin/skills', createSkillsAdminRoutes(skillsManager));

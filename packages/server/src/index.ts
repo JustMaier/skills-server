@@ -1,25 +1,33 @@
 import { serve } from '@hono/node-server';
 import { resolve } from 'node:path';
+import { mkdir } from 'node:fs/promises';
 import { eq } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 import { createApp } from './app.js';
 import { db, skills } from './db/index.js';
+import { verifyLink } from './services/symlink.js';
 
 const port = Number(process.env.PORT) || 3000;
 const skillsDir = resolve(process.env.SKILLS_DIR || './skills');
+const reposDir = resolve(process.env.REPOS_DIR || './repos');
 
 console.log('Starting skills server...');
 console.log(`  Port:       ${port}`);
 console.log(`  Skills dir: ${skillsDir}`);
+console.log(`  Repos dir:  ${reposDir}`);
 
 // ---------------------------------------------------------------------------
 // Create app and initialize
 // ---------------------------------------------------------------------------
 
-const { app, skillsManager } = createApp(skillsDir);
+const { app, skillsManager } = createApp(skillsDir, reposDir);
 
 // Initial skill discovery — scan directory and sync to DB
 async function initialize() {
+  // Ensure required directories exist
+  await mkdir(skillsDir, { recursive: true });
+  await mkdir(reposDir, { recursive: true });
+
   const result = await skillsManager.reload();
   const now = Date.now();
 

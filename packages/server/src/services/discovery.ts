@@ -214,7 +214,7 @@ export async function discoverSkills(
   }
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
 
     const skillDir = join(resolvedDir, entry.name);
     const skillFilePath = join(skillDir, SKILL_FILENAME);

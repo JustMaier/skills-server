@@ -1,98 +1,114 @@
 ---
 name: skills-server
-description: Connect to a centralized skills server to discover, load, and execute remote skills. Use this when you need to interact with skills hosted on a remote server.
+description: Connect to a centralized skills server to discover, load, and execute remote skills. Supports self-service environment variables, skill registration from Git repos, and a standalone CLI.
 ---
 
 # Skills Server
 
-You are connected to a skills server that hosts skills remotely. Use the HTTP API endpoints below to discover what skills are available, read their instructions, and execute their scripts.
+You are connected to a skills server that hosts skills remotely. Use the CLI or HTTP API to discover skills, read their instructions, execute their scripts, and manage your environment variables.
 
-## Authentication
+## Setup
 
-All requests require an `Authorization: Bearer <your-api-key>` header. Replace `<your-api-key>` with the API key provided to you.
-
-The server URL is `$ARGUMENTS` (the first argument passed when loading this skill).
-
-## Workflow
-
-Follow these steps when interacting with the skills server:
-
-1. **List available skills** to see what you can do.
-2. **Load a skill** to read its full instructions.
-3. **Execute scripts** as instructed by the skill.
-
-## Endpoints
-
-### List skills
-
-```
-GET {server}/api/v1/skills
-```
+The CLI (`skills-cli.mjs`) is a standalone Node.js script with zero dependencies. Configure it with two environment variables:
 
 ```bash
-curl -H "Authorization: Bearer <your-api-key>" {server}/api/v1/skills
+export SKILLS_SERVER_URL="$ARGUMENTS"   # Server URL (passed as first argument)
+export SKILLS_SERVER_KEY="<your-api-key>"
 ```
 
-Returns a JSON array of available skills:
-
-```json
-[{ "name": "...", "description": "...", "scripts": ["..."] }]
-```
-
-### Load skill instructions
-
-```
-GET {server}/api/v1/skills/{name}
-```
+Download the CLI from the server:
 
 ```bash
-curl -H "Authorization: Bearer <your-api-key>" {server}/api/v1/skills/{name}
+curl -o skills-cli.mjs $ARGUMENTS/public/skills-cli.mjs
+chmod +x skills-cli.mjs
 ```
 
-Returns the full skill definition:
-
-```json
-{ "name": "...", "content": "...", "scripts": ["..."] }
-```
-
-Read the `content` field -- it contains the skill's usage instructions. Follow those instructions to use the skill.
-
-### Execute a script
-
-```
-POST {server}/api/v1/skills/{name}/execute
-Content-Type: application/json
-```
+Or use `sync-local` to generate local SKILL.md stubs for all available skills:
 
 ```bash
-curl -X POST \
-  -H "Authorization: Bearer <your-api-key>" \
-  -H "Content-Type: application/json" \
-  -d '{"script": "script-name.mjs", "args": ["arg1", "arg2"]}' \
-  {server}/api/v1/skills/{name}/execute
+node skills-cli.mjs sync-local --dir .claude/skills
 ```
 
-Returns the execution result:
+## Core Workflow
 
-```json
-{ "success": true, "stdout": "...", "stderr": "...", "exitCode": 0, "error": null, "durationMs": 123 }
+### 1. Discover skills
+
+```bash
+node skills-cli.mjs list
 ```
 
-## Error Codes
+### 2. Read a skill's instructions
 
-| Code | Meaning |
-|---|---|
-| `SkillNotFound` | The requested skill does not exist on this server. |
-| `ScriptNotFound` | The script name is not part of the skill's allowed scripts. |
-| `ScriptNotAllowed` | The script exists but is not permitted to run. |
-| `InvalidArgs` | The arguments passed to the script are invalid. |
-| `ExecutionTimeout` | The script took too long and was killed. |
-| `ExecutionFailed` | The script ran but exited with a non-zero exit code. |
+```bash
+node skills-cli.mjs load <name>
+```
+
+Read the output — it contains the skill's full usage instructions and available scripts.
+
+### 3. Execute a script
+
+```bash
+node skills-cli.mjs exec <name> <script> [args...]
+```
+
+## Environment Variables
+
+Skills may require environment variables (API keys, config). If execution returns a **422 error** with `missingEnvVars`, you need to create and link them:
+
+```bash
+# Create your own env var
+node skills-cli.mjs env set API_KEY "sk-..." --desc "My API key"
+
+# List your env vars to get the ID
+node skills-cli.mjs env list
+
+# Link it to the skill that needs it
+node skills-cli.mjs env link <skillId> <envVarId>
+```
+
+The 422 response includes hints:
+- `"reason": "missing"` — you don't have this env var yet. Create it with `env set`.
+- `"reason": "not_linked"` — you have it but haven't linked it to this skill. Use `env link`.
+
+## Skill Registry
+
+Register skills from Git repos (requires `maintain` permission):
+
+```bash
+# Register a skill from a public repo
+node skills-cli.mjs register https://github.com/user/repo --subpath my-skill --name my-skill
+
+# Register from a private repo
+node skills-cli.mjs register https://github.com/org/private-repo --authToken ghp_...
+
+# Pull latest changes
+node skills-cli.mjs sync <registryId>
+```
+
+## HTTP API Reference
+
+All endpoints require `Authorization: Bearer <api-key>` header. Replace `{server}` with `$ARGUMENTS`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `{server}/api/v1/skills` | List available skills |
+| GET | `{server}/api/v1/skills/{name}` | Load skill content |
+| POST | `{server}/api/v1/skills/{name}/execute` | Execute a script |
+| GET | `{server}/api/v1/self/env-vars` | List my env vars |
+| POST | `{server}/api/v1/self/env-vars` | Create env var |
+| PATCH | `{server}/api/v1/self/env-vars/{id}` | Update env var |
+| DELETE | `{server}/api/v1/self/env-vars/{id}` | Delete env var |
+| POST | `{server}/api/v1/self/skills/{skillId}/env-vars/{envVarId}` | Link env var to skill |
+| DELETE | `{server}/api/v1/self/skills/{skillId}/env-vars/{envVarId}` | Unlink env var |
+| POST | `{server}/api/v1/registry` | Register skill from Git repo |
+| GET | `{server}/api/v1/registry` | List registry entries |
+| POST | `{server}/api/v1/registry/{id}/sync` | Sync (git pull) |
+| DELETE | `{server}/api/v1/registry/{id}` | Unregister skill |
 
 ## Tips
 
-- Always list skills first to see what is available on the server.
-- Load a skill's instructions before executing its scripts -- the instructions tell you how to use them.
-- Check the `scripts` array to know which scripts you can run for a given skill.
-- Read `stderr` on failure for debugging information.
-- Replace `{server}` in all examples with the actual server URL from `$ARGUMENTS`.
+- Always `list` first, then `load` a skill before executing — the instructions tell you how to use it.
+- Check `scripts` in the load response to know which scripts are available.
+- If you get a 422, read the `missingEnvVars` array — it tells you exactly what to do.
+- Use `--json` flag on any command for raw JSON output.
+- Use `sync-local` to create local stubs so skill-scanning frameworks discover your remote skills.
